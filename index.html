@@ -241,6 +241,23 @@ table.t td.rem{font-size:13.5px;color:var(--ink-2)}
   font-family:var(--pop);font-size:17px}
 .voices p::after{content:"」";color:var(--yam-w);font-family:var(--pop);font-size:17px;margin-left:2px}
 
+/* ===== 折りたたみ（会長あいさつ・実績・声・参加費の細目・予定の続き） ===== */
+details.fold{margin-top:24px;border-top:1px solid var(--line)}
+details.fold summary{cursor:pointer;padding:14px 0;font-family:var(--pop);font-weight:400;
+  font-size:15px;color:var(--yam-w);list-style:none;display:flex;align-items:center;gap:8px;
+  -webkit-tap-highlight-color:transparent}
+details.fold summary::-webkit-details-marker{display:none}
+details.fold summary::before{content:"＋";font-weight:700;width:1em;flex:none}
+details.fold[open] summary::before{content:"－"}
+details.fold[open] summary{padding-bottom:4px}
+details.fold[open] > *:not(summary):first-of-type{margin-top:10px}
+
+/* ===== ジャンプ目次（ヒーロー直下、独立した帯） ===== */
+.jump{background:var(--green-d);display:flex;flex-wrap:wrap}
+.jump a{flex:1;text-align:center;padding:11px 6px;font-size:12.5px;letter-spacing:.03em;
+  color:var(--on-g);text-decoration:none;opacity:.85;white-space:nowrap}
+.jump a:hover,.jump a:focus-visible{opacity:1;background:rgba(255,255,255,.08)}
+
 /* ===== 一緒につくる ===== */
 .make{list-style:none;margin:28px 0 0;padding:0;display:grid;gap:0;border-top:1px solid var(--line)}
 .make li{padding:20px 0;border-bottom:1px solid var(--line);display:grid;
@@ -306,6 +323,7 @@ footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,2
   .nav a{font-size:12px}
   .nav .logo{order:-2;font-size:14px}
   .nav .line{order:-1;margin-left:auto}
+  .jump a{flex:1 1 33%;font-size:11.5px;padding:10px 4px}
   .hero .lead{max-width:none}
   .next-holder{margin-top:26px;margin-bottom:-40px}
   .ridge{margin-top:16px}
@@ -414,6 +432,14 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
   </div>
 </header>
 
+<nav class="jump" aria-label="ページ内目次">
+  <a href="#yotei">予定</a>
+  <a href="#hajimete">はじめての方へ</a>
+  <a href="#kouen">公演</a>
+  <a href="#about">活動実績</a>
+  <a href="#tsukuru">参加する</a>
+</nav>
+
 <main>
 
 <section id="yotei" class="wrap">
@@ -516,17 +542,20 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
     <p>お金がかかるのは、基礎を学びたい方のためのワークショップだけです。参加するかどうかは自由で、出なくても11月23日の公演には出られます。</p>
   </div>
 
-  <div class="scroll-x rv" tabindex="0" role="region" aria-label="参加費の一覧">
-    <table class="t">
-      <tr><th scope="row">はじめての方・見学</th><td class="amt">無料</td><td class="rem">まず1回、様子を見に来てください。</td></tr>
-      <tr><th scope="row">高校生以下</th><td class="amt">いつでも無料</td><td class="rem">小学生から高校生まで参加しています。</td></tr>
-      <tr><th scope="row">公演に向けた稽古</th><td class="amt">無料</td><td class="rem">作品をつくる時間です。</td></tr>
-      <tr><th scope="row">ワークショップ</th><td class="amt">1コマ 2,000円</td><td class="rem">声の出し方、体の動かし方、台本の読み合わせを、基礎から学びたい方のための時間です。出なくても公演には出られます。</td></tr>
-      <tr><th scope="row">メンバー</th><td class="amt">3ヶ月 9,000円</td><td class="rem">期間中のワークショップに何回でも参加できます。入らなくても活動には参加できます。</td></tr>
-      <tr><th scope="row">U18メンバー</th><td class="amt">無料</td><td class="rem">18歳以下は会費がかかりません。</td></tr>
-      <tr><th scope="row">演劇パスポート</th><td class="amt">全員にお渡しします</td><td class="rem">参加するたびにスタンプがたまる、あなただけの手帳です。歩いた記録が残ります。</td></tr>
-    </table>
-  </div>
+  <details class="fold">
+    <summary>参加費の詳細を見る</summary>
+    <div class="scroll-x rv" tabindex="0" role="region" aria-label="参加費の一覧">
+      <table class="t">
+        <tr><th scope="row">はじめての方・見学</th><td class="amt">無料</td><td class="rem">まず1回、様子を見に来てください。</td></tr>
+        <tr><th scope="row">高校生以下</th><td class="amt">いつでも無料</td><td class="rem">小学生から高校生まで参加しています。</td></tr>
+        <tr><th scope="row">公演に向けた稽古</th><td class="amt">無料</td><td class="rem">作品をつくる時間です。</td></tr>
+        <tr><th scope="row">ワークショップ</th><td class="amt">1コマ 2,000円</td><td class="rem">声の出し方、体の動かし方、台本の読み合わせを、基礎から学びたい方のための時間です。出なくても公演には出られます。</td></tr>
+        <tr><th scope="row">メンバー</th><td class="amt">3ヶ月 9,000円</td><td class="rem">期間中のワークショップに何回でも参加できます。入らなくても活動には参加できます。</td></tr>
+        <tr><th scope="row">U18メンバー</th><td class="amt">無料</td><td class="rem">18歳以下は会費がかかりません。</td></tr>
+        <tr><th scope="row">演劇パスポート</th><td class="amt">全員にお渡しします</td><td class="rem">参加するたびにスタンプがたまる、あなただけの手帳です。歩いた記録が残ります。</td></tr>
+      </table>
+    </div>
+  </details>
 
   <div class="ways rv">
     <div><h3>観る</h3><p>11月23日の公演を観に来てください。入場無料です。それも立派な参加です。</p></div>
@@ -553,13 +582,16 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
 <section id="about" class="wrap">
   <div class="h-rule"><h2>これまでのこと</h2></div>
 
-  <div class="aisatsu rv">
-    <p>皆さま、こんにちは。旧8市町を巡った1年間の活動を経て、いよいよ由利本荘市で「市民劇団」の設立に向けた本格的なプロジェクトが始動します。</p>
-    <p>私たちが目指すのは、年齢や職業に関係なく、地域の人たちが集まってゼロから一つの舞台を創り上げる場所です。演じること、裏方として支えること。経験は一切問いません。必要なのは「やってみたい」という少しの好奇心だけです。</p>
-    <p>本気で創るからこそ味わえるワクワクや、思わず笑い合ってしまう瞬間を、みんなで共有できたらと思っています。</p>
-    <p>由利本荘を「物語がはじまる街」へ。私たちの新しい挑戦に、ぜひ飛び込んできてください。皆さまとお会いできる日を楽しみにしています。</p>
-    <p class="sign">会長　真坂 雅</p>
-  </div>
+  <details class="fold">
+    <summary>会長あいさつを読む</summary>
+    <div class="aisatsu rv">
+      <p>皆さま、こんにちは。旧8市町を巡った1年間の活動を経て、いよいよ由利本荘市で「市民劇団」の設立に向けた本格的なプロジェクトが始動します。</p>
+      <p>私たちが目指すのは、年齢や職業に関係なく、地域の人たちが集まってゼロから一つの舞台を創り上げる場所です。演じること、裏方として支えること。経験は一切問いません。必要なのは「やってみたい」という少しの好奇心だけです。</p>
+      <p>本気で創るからこそ味わえるワクワクや、思わず笑い合ってしまう瞬間を、みんなで共有できたらと思っています。</p>
+      <p>由利本荘を「物語がはじまる街」へ。私たちの新しい挑戦に、ぜひ飛び込んできてください。皆さまとお会いできる日を楽しみにしています。</p>
+      <p class="sign">会長　真坂 雅</p>
+    </div>
+  </details>
 
   <p class="sub">2025年、旧8市町をひと月ずつまわりました。由利本荘市の「住みつづけたいまちづくり事業補助金」に採択され、教育委員会にも後押しをいただいています。</p>
 
@@ -617,16 +649,21 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
     <b>ワークショップをした場所</b><span>カダーレ・ギャラリー／生涯学習センター／日新館（矢島）／岩城会館／有鄰館（東由利）／シーガル（西目）／由利コミュニティセンター善隣館／紫水館（鳥海）／大内公民館</span>
     <b>読み聞かせにおじゃました場所</b><span>鶴舞小学校／本荘保育園／本荘中央こども園／若草幼稚園／鳥海保育園／カダーレ・ギャラリー／鳥海山 木のおもちゃ館／岩城図書館／Hallo Mellow Yellow</span>
   </div>
-  <p class="note-s">2026年3月には齋彌酒造店の座敷で「ゆりほんじょう絵本シアター」を開催し、約80名の方にご来場いただきました（秋田魁新報 2026年3月17日）。2025年8月には当会の活動が読売新聞に掲載されました。</p>
+  <details class="fold">
+    <summary>メディア掲載実績を見る</summary>
+    <p class="note-s">2026年3月には齋彌酒造店の座敷で「ゆりほんじょう絵本シアター」を開催し、約80名の方にご来場いただきました（秋田魁新報 2026年3月17日）。2025年8月には当会の活動が読売新聞に掲載されました。</p>
+  </details>
 
-  <h3 class="pop" style="font-size:19px;margin:34px 0 0">参加した方の声</h3>
-  <div class="voices">
-    <p class="rv">初めてで緊張もありましたが楽しかったです。演劇にはまりそうです。</p>
-    <p class="rv">演じる側でも観る側でも、学ぶことの多いワークショップでした。</p>
-    <p class="rv">2度目の参加。表現と創造に関心のある人しかいない空間は、まさに「面が白くなる」ほど刺激に満ちています。</p>
-    <p class="rv">自分で見えていなかった自分を知り、そこをスタートにしてどんどん変化していく。その過程が、私にとっての演劇の面白さなのかもしれません。</p>
-    <p class="rv">読み聞かせでは子どもたちが大はしゃぎでした。また来てほしいです。</p>
-  </div>
+  <details class="fold">
+    <summary>参加した方の声を読む</summary>
+    <div class="voices">
+      <p class="rv">初めてで緊張もありましたが楽しかったです。演劇にはまりそうです。</p>
+      <p class="rv">演じる側でも観る側でも、学ぶことの多いワークショップでした。</p>
+      <p class="rv">2度目の参加。表現と創造に関心のある人しかいない空間は、まさに「面が白くなる」ほど刺激に満ちています。</p>
+      <p class="rv">自分で見えていなかった自分を知り、そこをスタートにしてどんどん変化していく。その過程が、私にとっての演劇の面白さなのかもしれません。</p>
+      <p class="rv">読み聞かせでは子どもたちが大はしゃぎでした。また来てほしいです。</p>
+    </div>
+  </details>
 </section>
 
 <section id="tsukuru" class="wrap">
@@ -872,11 +909,26 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
           header.forEach(function(h, idx){ obj[h] = r[idx] || ""; });
           return obj;
         });
-      var html = buildEventsHTML(records);
-      if(!html) return;
+      if(!records.length) return;
       var ul = document.querySelector(".evs");
       if(!ul) return;
-      ul.innerHTML = html;
+      var LIMIT = 6;
+      ul.innerHTML = buildEventsHTML(records.slice(0, LIMIT));
+      var oldMore = ul.parentNode.querySelector(".evs-more");
+      if(oldMore) oldMore.remove();
+      var overflow = records.slice(LIMIT);
+      if(overflow.length){
+        var det = document.createElement("details");
+        det.className = "fold evs-more";
+        var sum = document.createElement("summary");
+        sum.textContent = "ほかの予定を見る（＋" + overflow.length + "件）";
+        var moreUl = document.createElement("ul");
+        moreUl.className = "evs";
+        moreUl.innerHTML = buildEventsHTML(overflow);
+        det.appendChild(sum);
+        det.appendChild(moreUl);
+        ul.insertAdjacentElement("afterend", det);
+      }
       syncEvents();
     }).catch(function(){
       /* 取得できない環境（Artifactプレビュー等）や一時的な失敗のときは、
