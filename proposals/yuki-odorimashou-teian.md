@@ -142,6 +142,3 @@
 企画・お問い合わせ
 OKAMI企画　代表　真坂 雅
 theokamiproject@gmail.com
-
-参考資料：
-- https://docs.google.com/document/d/1GNI0AQsDiOcdh3tWrxrAmOdXfjh6EQ5EN6rgCKyuEDg/edit?tab=t.0#bookmark=id.9ko2ma1ktyv
