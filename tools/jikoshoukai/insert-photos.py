@@ -19,15 +19,17 @@ from PIL import Image, ImageOps
 W, H = 1600, 837                    # 写真枠 3931920 x 2057400 EMU と同じ比率
 WARM, COOL = (0xEC, 0xE2, 0xD0), (0xE4, 0xED, 0xF0)   # 左＝真坂 / 右＝寺戸の枠色
 
-# スライド番号 -> 'L'（左・真坂）/ 'R'（右・寺戸）-> (写真, cover|contain, 上下の寄せ, 回転角)
+# スライド番号 -> 'L'（左・真坂）/ 'R'（右・寺戸）
+#   -> (写真, cover|contain, 上下の寄せ, 回転角, 先に切り取る範囲 or None)
 MAPPING = {
-    2: {'L': ('photos/butai.jpg',      'cover',   0.42,   0),
-        'R': ('photos/keikoba.jpg',    'cover',   0.50,   0)},
-    3: {'L': ('photos/akachan_m.jpg',  'contain', 0.50,   0),
-        'R': ('photos/akachan_t.jpg',  'contain', 0.50, -90)},
-    4: {'R': ('photos/gekidan.jpg',    'cover',   0.42,   0)},   # 左は写真なし
-    5: {'L': ('photos/washitsu.jpg',   'cover',   0.62,   0),
-        'R': ('photos/gekijou.jpg',    'contain', 0.50,   0)},
+    2: {'L': ('photos/butai.jpg',      'cover',   0.42,   0, None),
+        'R': ('photos/keikoba.jpg',    'cover',   0.50,   0, None)},
+    # 真坂Q2はプリント写真を撮ったもの。まわりの壁を落としてから、赤ちゃんに寄せる
+    3: {'L': ('photos/akachan_m.jpg',  'cover',   0.56,   0, (0.126, 0.0, 0.927, 1.0)),
+        'R': ('photos/akachan_t.jpg',  'contain', 0.50, -90, None)},
+    4: {'R': ('photos/gekidan.jpg',    'cover',   0.42,   0, None)},   # 左は写真なし
+    5: {'L': ('photos/washitsu.jpg',   'cover',   0.62,   0, None),
+        'R': ('photos/gekijou.jpg',    'contain', 0.50,   0, None)},
 }
 
 FRAME = {'L': ('457200', '1463040'), 'R': ('4754880', '1463040')}
@@ -36,10 +38,14 @@ BLIP  = ('<a:blipFill rotWithShape="1"><a:blip r:embed="%s"/>'
          '<a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>')
 
 
-def render(path, mode, focus, rot, bg):
+def render(path, mode, focus, rot, box, bg):
     im = ImageOps.exif_transpose(Image.open(path)).convert('RGB')
     if rot:
         im = im.rotate(rot, expand=True)
+    if box:                                           # 割合指定で先に切り取る
+        l, t, r, b = box
+        im = im.crop((int(l * im.width), int(t * im.height),
+                      int(r * im.width), int(b * im.height)))
     if mode == 'contain':
         out = Image.new('RGB', (W, H), bg)
         im.thumbnail((W, H), Image.LANCZOS)
@@ -72,10 +78,10 @@ def main(src, out):
         key, rels_key = 'ppt/slides/slide%d.xml' % n, 'ppt/slides/_rels/slide%d.xml.rels' % n
         xml, rels = parts[key].decode('utf-8'), parts[rels_key].decode('utf-8')
 
-        for side, (path, mode, focus, rot) in sorted(sides.items()):
+        for side, (path, mode, focus, rot, box) in sorted(sides.items()):
             rid, target = 'rIdPhoto%s' % side, 'photo%d%s.jpg' % (n, side)
             buf = io.BytesIO()
-            render(path, mode, focus, rot, WARM if side == 'L' else COOL).save(
+            render(path, mode, focus, rot, box, WARM if side == 'L' else COOL).save(
                 buf, 'JPEG', quality=88, optimize=True)
             media.append((target, buf.getvalue()))
 
