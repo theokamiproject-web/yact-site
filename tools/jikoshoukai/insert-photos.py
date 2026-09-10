@@ -22,7 +22,7 @@ WARM, COOL = (0xEC, 0xE2, 0xD0), (0xE4, 0xED, 0xF0)   # 左＝真坂 / 右＝寺
 # スライド番号 -> 'L'（左・真坂）/ 'R'（右・寺戸）
 #   -> (写真, cover|contain, 上下の寄せ, 回転角, 先に切り取る範囲 or None)
 MAPPING = {
-    2: {'L': ('photos/butai.jpg',      'cover',   0.348,  0, None),
+    2: {'L': ('photos/butai.jpg',      'cover',   0.52,   0, None),
         'R': ('photos/keikoba.jpg',    'cover',   0.42,   0, (0.02, 0.02, 0.78, 0.80))},
     # 真坂Q2はプリント写真を撮ったもの。まわりの壁を落としてから、赤ちゃんに寄せる
     3: {'L': ('photos/akachan_m.jpg',  'cover',   0.56,   0, (0.126, 0.0, 0.927, 1.0)),
