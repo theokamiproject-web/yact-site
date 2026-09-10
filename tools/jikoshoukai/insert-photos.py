@@ -24,9 +24,8 @@ WARM, COOL = (0xEC, 0xE2, 0xD0), (0xE4, 0xED, 0xF0)   # 左＝真坂 / 右＝寺
 MAPPING = {
     2: {'L': ('photos/butai.jpg',      'cover',   0.52,   0, None),
         'R': ('photos/keikoba.jpg',    'cover',   0.42,   0, (0.02, 0.02, 0.78, 0.80))},
-    # 真坂Q2は父と赤ちゃんの両方の顔を入れる。枠が横長なので、元画像の横幅いっぱいを
-    # 使わないと縦が足りない（＝プリントのふちと壁が左右に写る）
-    3: {'L': ('photos/akachan_m.jpg',  'cover',   0.33,   0, None),
+    # 真坂Q2は赤ちゃんを主役に。お父さんはあごから下だけ入る位置
+    3: {'L': ('photos/akachan_m.jpg',  'cover',   0.46,   0, (0.126, 0.0, 0.927, 1.0)),
         'R': ('photos/akachan_t.jpg',  'cover',   0.445, -90, None)},
     4: {'L': ('photos/kouen.jpg',      'cover',   0.57,   0, None),
         'R': ('photos/gekidan.jpg',    'cover',   0.40,   0, None)},
