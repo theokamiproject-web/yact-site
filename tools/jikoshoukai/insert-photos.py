@@ -22,13 +22,14 @@ WARM, COOL = (0xEC, 0xE2, 0xD0), (0xE4, 0xED, 0xF0)   # 左＝真坂 / 右＝寺
 # スライド番号 -> 'L'（左・真坂）/ 'R'（右・寺戸）
 #   -> (写真, cover|contain, 上下の寄せ, 回転角, 先に切り取る範囲 or None)
 MAPPING = {
-    2: {'L': ('photos/butai.jpg',      'cover',   0.42,   0, None),
-        'R': ('photos/keikoba.jpg',    'cover',   0.50,   0, None)},
+    2: {'L': ('photos/butai.jpg',      'cover',   0.348,  0, None),
+        'R': ('photos/keikoba.jpg',    'cover',   0.42,   0, (0.02, 0.02, 0.78, 0.80))},
     # 真坂Q2はプリント写真を撮ったもの。まわりの壁を落としてから、赤ちゃんに寄せる
     3: {'L': ('photos/akachan_m.jpg',  'cover',   0.56,   0, (0.126, 0.0, 0.927, 1.0)),
-        'R': ('photos/akachan_t.jpg',  'contain', 0.50, -90, None)},
-    4: {'R': ('photos/gekidan.jpg',    'cover',   0.42,   0, None)},   # 左は写真なし
-    5: {'L': ('photos/washitsu.jpg',   'cover',   0.62,   0, None),
+        'R': ('photos/akachan_t.jpg',  'cover',   0.445, -90, None)},
+    4: {'L': ('photos/kouen.jpg',      'cover',   0.57,   0, None),
+        'R': ('photos/gekidan.jpg',    'cover',   0.40,   0, None)},
+    5: {'L': ('photos/washitsu.jpg',   'cover',   0.65,   0, None),
         'R': ('photos/gekijou.jpg',    'contain', 0.50,   0, None)},
 }
 
@@ -48,7 +49,8 @@ def render(path, mode, focus, rot, box, bg):
                       int(r * im.width), int(b * im.height)))
     if mode == 'contain':
         out = Image.new('RGB', (W, H), bg)
-        im.thumbnail((W, H), Image.LANCZOS)
+        k = min(W / im.width, H / im.height)   # thumbnail は縮小しかしないので倍率を自前で出す
+        im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
         out.paste(im, ((W - im.width) // 2, (H - im.height) // 2))
         return out
     if im.width / im.height > W / H:                  # 横に長い → 左右を切る
