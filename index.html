@@ -274,11 +274,16 @@ footer h3{font-family:var(--pop);font-weight:400;font-size:14px;color:var(--yam)
   letter-spacing:.08em;margin:0 0 10px}
 footer .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:40px}
 footer p{font-size:14px;color:#DCEBE7;line-height:1.95}
+footer .cols>*{min-width:0}   /* グリッド枠を超えて広がらないようにする */
 footer .roles{display:grid;gap:7px;font-size:14px}
-footer .roles span{display:grid;grid-template-columns:104px 1fr;gap:10px}
+footer .roles span{display:grid;grid-template-columns:80px minmax(0,1fr);gap:10px}
+/* 語の切れ目で折り返し、どうしても入らないときだけアドレスを割る */
+footer .roles span,footer .contact p{overflow-wrap:break-word}
+/* アドレスのように長い項目は、見出しの下に流して幅をぜんぶ使う */
+footer .roles span.stack{grid-template-columns:1fr;gap:2px}
 footer .roles i{font-style:normal;color:#C6DED9}
 footer .tbd-n{color:#BFD8D3;font-size:12.5px}
-footer .contact a{color:var(--yam);text-decoration:none;border-bottom:1px solid rgba(232,163,61,.5)}
+footer .contact a,footer .roles a{color:var(--yam);text-decoration:none;border-bottom:1px solid rgba(232,163,61,.5)}
 footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,255,.22);
   font-size:12.5px;color:#C6DED9}
 
@@ -762,7 +767,7 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
         <h3>運営</h3>
         <div class="roles">
           <span><i>会長</i>真坂 雅</span>
-          <span><i>事務局</i>公式LINEまたはtheokamiproject@gmail.comへ</span>
+          <span class="stack"><i>事務局</i>公式LINE または <a href="mailto:theokamiproject@gmail.com">theokamiproject@gmail.com</a></span>
         </div>
         <p class="tbd-n" style="margin-top:10px">参加メンバーのお名前は、ご本人の了解をいただいてから掲載します。</p>
       </div>
