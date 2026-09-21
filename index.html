@@ -151,6 +151,7 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
 .tbd{border-top:1px solid var(--line);padding:24px 0;display:grid;grid-template-columns:118px 1fr;gap:18px}
 .tbd b{font-family:var(--num);font-weight:900;font-size:20px}
 .tbd p{font-size:14.5px;color:var(--ink-2)}
+.tbd.solo{grid-template-columns:1fr}   /* 見出しのない注記は1列で */
 .note-s{font-size:13.5px;color:var(--mute);margin-top:20px}
 
 /* ===== 関わり方 ===== */
@@ -588,9 +589,8 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
     </li>
   </ul>
 
-  <div class="tbd">
-    <b class="num">稽古の時間</b>
-    <p>10月以降の開始・終了時刻は調整中です。決まりしだい、このページと公式LINEでお知らせします。</p>
+  <div class="tbd solo">
+    <p>以降のスケジュールは調整中です。決まりしだい、このページと公式LINEでお知らせします。</p>
   </div>
   <p class="note-s">「この日なら行けます」というのを、毎月のフォームで教えてください。フォームは公式LINEからお送りしています。</p>
 </section>
