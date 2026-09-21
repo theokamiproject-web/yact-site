@@ -54,6 +54,8 @@ img{max-width:100%;display:block}
 .nav{display:flex;align-items:center;gap:10px 15px;flex-wrap:wrap;
   padding:16px 0 14px;border-bottom:1px solid rgba(255,255,255,.26)}
 .nav .logo{font-family:var(--pop);font-size:14.5px;letter-spacing:0;margin-right:2px;white-space:nowrap}
+/* 5つのリンクはひとかたまり。団体名やLINEの脇に1つだけ紛れ込まないようにする */
+.nav .navlinks{display:flex;align-items:center;flex-wrap:wrap;gap:10px 15px}
 .nav a{font-size:12.5px;letter-spacing:.07em;text-decoration:none;opacity:.85;padding:3px 0;
   border-bottom:2px solid transparent}
 .nav a:hover{opacity:1;border-bottom-color:var(--yam)}
@@ -287,6 +289,9 @@ footer .contact a,footer .roles a{color:var(--yam);text-decoration:none;border-b
 footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,255,.22);
   font-size:12.5px;color:#C6DED9}
 
+/* 本文リード中のリンク */
+.sub a{color:var(--yam-w);font-weight:700;text-decoration:none;border-bottom:2px solid rgba(154,91,16,.45)}
+.sub a:hover{border-bottom-color:var(--yam-w)}
 .ouen-slot{margin-top:8px;border:1px dashed rgba(255,255,255,.32);padding:14px 16px}
 .ouen-slot p{font-size:13px;color:#CFE4E0;line-height:1.85}
 
@@ -328,6 +333,7 @@ footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,2
   .nav a{font-size:12px}
   .nav .logo{order:-2;font-size:14px}
   .nav .line{order:-1;margin-left:auto}
+  .nav .navlinks{flex:1 0 100%}   /* 狭い画面ではリンクだけで1行使う */
   .jump a{flex:1 1 33%;font-size:11.5px;padding:10px 4px}
   .hero .lead{max-width:none}
   .next-holder{margin-top:26px;margin-bottom:-40px}
@@ -395,11 +401,13 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
   <div class="wrap">
     <nav class="nav">
       <span class="logo">由利本荘市民劇団を立ち上げる会</span>
-      <a href="#yotei">これからの予定</a>
-      <a href="#hajimete">はじめての方へ</a>
-      <a href="#kouen">公演</a>
-      <a href="#about">これまでのこと</a>
-      <a href="#tsukuru">一緒につくる</a>
+      <div class="navlinks">
+        <a href="#yotei">これからの予定</a>
+        <a href="#hajimete">はじめての方へ</a>
+        <a href="#kouen">公演</a>
+        <a href="#about">これまでのこと</a>
+        <a href="#tsukuru">一緒につくる</a>
+      </div>
       <a class="line" href="https://lin.ee/xSWLOJ2g" target="_blank" rel="noopener">LINE</a>
     </nav>
 
@@ -560,6 +568,7 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
 
 <section id="hajimete" class="wrap">
   <div class="h-rule"><h2>はじめての方へ</h2></div>
+  <p class="sub">見学・参加のお申し込みは<a href="https://lin.ee/xSWLOJ2g" target="_blank" rel="noopener">公式LINE</a>から！</p>
   <div class="frees">
     <div class="rv"><b>はじめての方は無料</b><span>まず1回、様子を見に来てください。その日に決めなくて大丈夫です。</span></div>
     <div class="rv"><b>高校生以下はいつでも無料</b><span>これまで10代から60代までの方が参加しています。</span></div>
