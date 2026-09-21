@@ -66,6 +66,17 @@ img{max-width:100%;display:block}
 
 .hero .kick{margin-top:28px;font-size:12.5px;letter-spacing:.18em;color:var(--yam);font-weight:700;
   text-shadow:0 1px 4px rgba(18,63,57,.9)}
+/* 直近の公演。日付を過ぎたらJSで消える */
+.next-show{display:flex;margin-top:20px;align-items:baseline;flex-wrap:wrap;gap:4px 12px;
+  background:var(--yam);color:#123F39;text-decoration:none;padding:11px 16px;
+  border-left:5px solid #123F39}
+.next-show.past{display:none}
+.next-show b{font-family:var(--pop);font-weight:400;font-size:19px;letter-spacing:.01em}
+.next-show b small{font-size:13px;margin-left:2px}
+.next-show span{font-size:13.5px}
+.next-show em{font-style:normal;font-weight:700;font-size:13.5px;margin-left:auto;
+  border-bottom:2px solid rgba(18,63,57,.5);white-space:nowrap}
+.next-show:hover em{border-bottom-color:#123F39}
 .hero h1{font-family:var(--pop);font-weight:400;margin:12px 0 0;
   font-size:clamp(32px,7.6vw,58px);line-height:1.32;letter-spacing:.02em;text-wrap:balance}
 .hero .lead{margin-top:16px;font-size:16px;line-height:2;max-width:34ch;color:#DDEDE9}
@@ -307,7 +318,19 @@ footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,2
 .bar p{font-size:13px;color:#CFE4E0}
 .bar a{margin-left:auto;background:var(--yam);color:#123F39;font-family:var(--pop);
   font-size:14.5px;padding:10px 20px;text-decoration:none}
-@media (max-width:760px){.bar p{display:none}.bar a{margin-left:0;flex:1;text-align:center}}
+.bar .b-show.past{display:none}
+.bar .b-join{background:transparent;color:var(--yam);border:2px solid var(--yam);padding:8px 18px}
+.bar .b-show+.b-join{margin-left:0}
+@media (max-width:760px){.bar{gap:8px}.bar p{display:none}
+  .bar a{margin-left:0;flex:1 1 0;text-align:center;font-size:13.5px;padding:10px 6px}
+  .bar .b-join{padding:8px 6px}   /* 枠線ぶんの差を消して2つの幅をそろえる */
+}
+@media (max-width:359px){   /* 小さい端末では2つのボタンが折り返さないよう詰める */
+  .bar{padding-left:12px;padding-right:12px;gap:6px}
+  .bar a{font-size:12.5px;padding:10px 4px}
+  .bar .b-join{padding:8px 4px}
+  .bar .b-show+.b-join{font-size:12.5px}
+  .bar .b-show.past+.b-join{font-size:13.5px}}
 
 /* ===== チラシ ===== */
 .chirashi{margin-top:40px;background:var(--paper);padding:26px 26px 28px}
@@ -410,6 +433,13 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
       </div>
       <a class="line" href="https://lin.ee/xSWLOJ2g" target="_blank" rel="noopener">LINE</a>
     </nav>
+
+    <a class="next-show" id="next-show" data-until="2026-11-23T17:00"
+       href="https://docs.google.com/forms/d/e/1FAIpQLSc9NlFPtxZid80DMvs8ZNgQDLFhs5-PE1PUmylOlO-fDP51JQ/viewform" target="_blank" rel="noopener">
+      <b>11月23日<small>（月・祝）</small></b>
+      <span>アキタウミヨコお座敷シアター　入場無料</span>
+      <em>ご予約はこちら</em>
+    </a>
 
     <h1>演劇、<br>やってみない？</h1>
     <p class="lead">年齢も、お仕事も、経験も関係ありません。舞台に立つのでも、裏方で支えるのでも、見に来るだけでも大歓迎です。</p>
@@ -797,8 +827,10 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
 </footer>
 
 <div class="bar">
-  <p>見学のお申し込みは公式LINEから。「見学したい」の一言で結構です。</p>
-  <a href="https://lin.ee/xSWLOJ2g" target="_blank" rel="noopener">LINEで見学を申し込む</a>
+  <p>観に来る方も、やってみたい方も。</p>
+  <a class="b-show" id="bar-show" data-until="2026-11-23T17:00"
+     href="https://docs.google.com/forms/d/e/1FAIpQLSc9NlFPtxZid80DMvs8ZNgQDLFhs5-PE1PUmylOlO-fDP51JQ/viewform" target="_blank" rel="noopener">11/23を予約する</a>
+  <a class="b-join" href="https://lin.ee/xSWLOJ2g" target="_blank" rel="noopener">LINEで見学を申し込む</a>
 </div>
 
 <script>
@@ -879,6 +911,17 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
     }catch(e){}
   }
   syncEvents();
+
+  /* 公演当日を過ぎたら、ヒーローの帯と予約ボタンを引っ込める */
+  (function(){
+    var now = Date.now();
+    Array.prototype.forEach.call(document.querySelectorAll("[data-until]"), function(el){
+      var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(el.getAttribute("data-until"));
+      if(!m) return;
+      var t = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]).getTime();
+      if(isFinite(t) && t < now) el.className += " past";
+    });
+  })();
 
   /* --- これからの予定：スプレッドシート（公開CSV）から読み込む ---
      1) Googleスプレッドシートを作り、1行目をヘッダーに: date,weekday,start,end,title,time_detail,place,note
