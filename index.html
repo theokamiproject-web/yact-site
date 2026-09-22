@@ -144,10 +144,7 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
   color:var(--yam-w);border:1px solid var(--yam-w);padding:2px 9px}
 .ev.soon .ev-d b{color:var(--green)}
 .ev.soon{background:linear-gradient(90deg,rgba(154,91,16,.10),rgba(154,91,16,0) 62%)}
-.ev.past .ev-d b,.ev.past .ev-t,.ev.past .ev-time,.ev.past .ev-pl{color:var(--mute)}
-.ev.past .ev-d::after{content:"終了";display:inline-block;margin-left:8px;font-size:11.5px;
-  color:var(--mute);border:1px solid var(--line);padding:1px 7px;vertical-align:2px}
-.ev.past .ev-note{display:none}
+.ev.past{display:none}   /* 終わった予定は載せない */
 .tbd{border-top:1px solid var(--line);padding:24px 0;display:grid;grid-template-columns:118px 1fr;gap:18px}
 .tbd b{font-family:var(--num);font-weight:900;font-size:20px}
 .tbd p{font-size:14.5px;color:var(--ink-2)}
@@ -863,7 +860,7 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
     }
   }catch(e){}
 
-  /* --- 終わった予定を薄くし、直近の1件をヒーローのカードへ写す --- */
+  /* --- 終わった予定を隠し、直近の1件をヒーローのカードへ写す --- */
   function syncEvents(){
     try{
       var evs = document.querySelectorAll(".ev[data-end]");
