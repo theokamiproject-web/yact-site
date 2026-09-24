@@ -146,8 +146,10 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
 .ev.soon{background:linear-gradient(90deg,rgba(154,91,16,.10),rgba(154,91,16,0) 62%)}
 .ev.past{display:none}   /* 終わった予定は載せない */
 .tbd{border-top:1px solid var(--line);padding:24px 0;display:grid;grid-template-columns:118px 1fr;gap:18px}
-.tbd b{font-family:var(--num);font-weight:900;font-size:20px}
-.tbd p{font-size:14.5px;color:var(--ink-2)}
+.tbd>b{font-family:var(--num);font-weight:900;font-size:20px}
+.tbd p{font-size:14.5px;color:var(--ink-2);line-height:2}
+.tbd p b{font-family:inherit;font-size:inherit;font-weight:700;color:var(--ink);
+  display:inline-block}   /* 強調句は途中で折り返さない */
 .tbd.solo{grid-template-columns:1fr}   /* 見出しのない注記は1列で */
 .note-s{font-size:13.5px;color:var(--mute);margin-top:20px}
 
@@ -202,7 +204,9 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
 .engi li+li{border-top:1px dotted var(--line);padding-top:12px}
 .kouen dd{margin:0;color:var(--ink-2)}
 .kouen .fee{margin-top:18px;padding-top:16px;border-top:1px solid #CFE1DD;font-size:15px}
-.kouen .fee b{font-family:var(--num);font-weight:900;font-size:19px;color:var(--ink)}
+.kouen .fee b{font-family:var(--num);font-weight:900;font-size:19px;color:var(--ink);
+  display:block;margin-bottom:8px}
+.kouen .fee p{margin:0;line-height:1.95}
 
 /* ===== ご挨拶 ===== */
 .aisatsu{margin-top:26px;background:var(--paper);padding:28px 26px 26px;
@@ -669,8 +673,10 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
       <dt>MC</dt><dd>真坂 雅</dd>
       <dt>ご予約</dt><dd>ご予約は回ごとに承ります。ご希望の回をお選びください。（複数回のご予約もできます）</dd>
     </dl>
-    <div class="fee"><b>入場無料</b>　カンパ制です。お気持ちの範囲でお願いしています。お食事券付きのパンフレット1,000円を会場で販売します。
-    温泉と道の駅のついでに立ち寄れる場所です。ご家族・ご友人を誘って来てください。</div>
+    <div class="fee"><b>入場無料（カンパ制）</b>
+    <p>お食事券付きチケット（1000円）もご予約可能です。<br>
+    ご飯や温泉の前後に、ふらりと朗読を楽しみませんか？<br>
+    お一人でも、ご家族やご友人とでも楽しめる作品たちをお届けします。</p></div>
     <a class="btn-w" href="https://docs.google.com/forms/d/e/1FAIpQLSc9NlFPtxZid80DMvs8ZNgQDLFhs5-PE1PUmylOlO-fDP51JQ/viewform" target="_blank" rel="noopener">ご予約フォームへ（入場無料）</a>
   </div>
 
