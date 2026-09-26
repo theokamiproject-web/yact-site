@@ -1,0 +1,147 @@
+# =========================================================
+# ポッドキャスト自動編集ツール 設定ファイル
+# 数値を変えて再実行すれば、同じ素材から何度でも作り直せます。
+# 時間の単位はすべて「秒」、音量は「dB」です。
+# =========================================================
+
+# ---- フォルダとファイル名（このファイルのある場所の1つ上が基準） ----
+paths:
+  assets_dir: assets
+  input_dir: input
+  output_dir: output
+  work_dir: output/_work        # 中間ファイル置き場
+
+# ---- 書き出し ----
+output:
+  master_suffix: "_master"      # episode_master.wav
+  publish_suffix: "_publish"    # episode_publish.mp3
+  report_suffix: "_report"      # episode_report.json / .txt
+  overwrite: true               # 既存の出力を上書きするか（元音源は常に上書きしない）
+  keep_work_files: false        # 中間ファイルを残すか（調査用）
+  channels: 2                   # 完成音源のチャンネル数 1=モノラル 2=ステレオ
+  master:
+    sample_rate: 48000
+    bit_depth: 24               # 16 / 24 / 32(浮動小数)
+  publish:
+    bitrate: "128k"             # MP3 ビットレート（CBR）例: 96k / 128k / 192k
+    sample_rate: 44100
+    channels: 2                 # 1にするとMP3だけモノラル（容量半分）
+
+# ---- 最終ラウドネス ----
+loudness:
+  target_lufs: -16.0            # Apple Podcasts 推奨 -16 / Spotify 基準 -14
+  true_peak_max_dbtp: -1.0      # True Peak の上限
+  limiter_margin_db: 0.5        # リミッタは「上限 - この値」で動かす（MP3化での上昇対策）
+  accuracy_lu: 0.2              # マスタリング時に目標へ追い込む精度（小さいほど試行回数が増える）
+  tolerance_lu: 1.0             # 品質チェックで許容するラウドネス誤差
+
+# ---- 入力 ----
+input:
+  downmix_to_mono: true         # 声を中央にまとめる（2本マイクをL/Rに録った場合も合算される）
+
+# ---- 音声クリーニング ----
+cleanup:
+  highpass:
+    enabled: true
+    frequency_hz: 80            # 空調・振動・吹かれの低域をカット。男性の低い声なら 60〜70
+    order: 2                    # 2=12dB/oct（穏やか） 4=24dB/oct（強め）
+  lowpass:
+    enabled: false
+    frequency_hz: 16000
+  denoise:
+    enabled: true
+    reduction_db: 10            # ノイズ低減量。6〜12 推奨。上げすぎると声が金属的になる
+    noise_floor_db: auto        # auto = 入力の静かな部分を実測。数値指定も可（例 -60）
+    track_noise: true           # ノイズの変化に追従
+  declick:
+    enabled: false              # クリック音・プチノイズ除去（処理が重い）
+
+# ---- 会話の音量均し ----
+leveling:
+  dynaudnorm:                   # 話者間・区間ごとの極端な音量差を均す
+    enabled: true
+    frame_ms: 200
+    gauss_size: 11              # 追従の速さ（奇数）。frame_ms × gauss_size ≒ 2.2 秒の範囲で均す
+                                # 演技の強弱（ささやき/叫び）を残したい場合は 21〜31 に上げる
+                                # 検証値: 話者間 8.3LU 差 → 11 で 3.8LU / 31 で 6.7LU（frame 500ms）
+    max_gain_db: 10             # 小さい区間を持ち上げる上限
+    peak: 0.9
+    threshold_db: auto          # これより静かな部分（無音・ノイズだけの間）は持ち上げない。auto = 実測ノイズ + 6dB
+  compressor:                   # 必要最低限のコンプ
+    enabled: true
+    threshold_db: -20
+    ratio: 2.0
+    attack_ms: 20
+    release_ms: 250
+    knee_db: 2.8                # 1〜8
+
+# ---- 無音処理 ----
+silence:
+  threshold_db: auto            # auto = ノイズのピーク + auto_margin_db。数値指定も可（例 -45）
+  auto_margin_db: 6
+  auto_min_db: -70               # auto のときの下限・上限（録音レベルが極端に高い/低い場合の安全柵）
+  auto_max_db: -20
+  min_duration_sec: 0.3         # これより短い無音は無音扱いしない
+  trim_head: true               # 冒頭の無音を除去
+  trim_tail: true               # 末尾の無音を除去
+  keep_head_sec: 0.3            # 除去後に残す余白
+  keep_tail_sec: 0.6
+  long_silence_warn_sec: 4.0    # これ以上の無音は「異常に長い無音」候補として報告（削除はしない）
+
+# ---- BGM 共通 ----
+bgm:
+  reference_lufs: null          # BGMを一旦このラウドネスに揃えてから各 gain_db を適用。null = 声と同じ
+  ducking:                      # 声とBGMが重なるとBGMを自動で下げる
+    enabled: true
+    threshold_db: -26           # 声がこれを超えるとBGMが下がり始める（下げるほど強くかかる）
+    ratio: 3                    # 声が目標音量のとき約 6〜9 dB 下がる
+    attack_ms: 80
+    release_ms: 800             # 声が止んでからBGMが戻る速さ
+    knee_db: 2.8
+
+# ---- OP ----
+opening:
+  enabled: true
+  file: opening.mp3
+  solo_sec: 8.0                 # BGM単体で流す長さ = 本編の声が始まる時刻
+  solo_gain_db: 0.0             # BGM単体時の音量
+  fade_in_sec: 0.0
+  duck_transition_sec: 1.5      # 声が始まる何秒前からBGMを下げ始めるか
+  bed_gain_db: -12.0            # 声の下で流れるBGMの音量（さらにダッキングで下がる）
+  bed_sec: 6.0                  # 声が始まってからBGMを流し続ける長さ
+  fade_out_sec: 4.0
+
+# ---- アイキャッチ ----
+jingle:
+  enabled: true
+  file: jingle.mp3
+  gain_db: -2.0
+  positions:                    # 本編（冒頭無音除去後の声）基準。複数可
+    - percent: 50               # 本編全体の50%地点
+    # - minutes: 10             # 本編開始から10分後
+  search_window_sec: 30         # 指定地点の前後この範囲で自然な無音を探す
+  min_silence_sec: 0.5          # 挿入点として使える無音の最短長
+  prefer_longer_weight: 5.0     # 長い無音を優先する度合い（無音1秒あたり何秒の距離差を許すか）
+  on_no_silence: skip           # skip = 挿入しない（会話を切らない） / nearest = 範囲外でも最寄りの無音
+  min_distance_sec: 60          # アイキャッチ同士の最小間隔
+  gap_before_sec: 0.4           # アイキャッチ前後に足す間
+  gap_after_sec: 0.4
+  fade_in_sec: 0.02
+  fade_out_sec: 0.3
+
+# ---- ED ----
+ending:
+  enabled: true
+  file: ending.mp3
+  lead_in_sec: 12.0             # 本編終了の何秒前からEDを始めるか
+  fade_in_sec: 4.0
+  bed_gain_db: -12.0            # 声と重なる間の音量（さらにダッキングで下がる）
+  rise_sec: 2.0                 # 本編終了後、BGMを戻すのにかける時間
+  solo_gain_db: 0.0
+  tail_sec: 10.0                # 本編終了後にBGMを流す長さ（フェードアウトを除く）
+  fade_out_sec: 5.0
+
+# ---- FFmpeg ----
+ffmpeg:
+  path: null                    # null = PATH から探す。例: "C:/ffmpeg/bin/ffmpeg.exe"
+  ffprobe_path: null

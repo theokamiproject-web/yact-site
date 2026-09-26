@@ -1,0 +1,11 @@
+# 音声素材・入出力はGitに入れない（容量・著作権のため）
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+assets/*
+!assets/.gitkeep
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
