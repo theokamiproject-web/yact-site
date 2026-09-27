@@ -1,10 +1,36 @@
-# 音声素材・入出力はGitに入れない（容量・著作権のため）
+# ===== 音声・動画・文字起こし・ログは、どのフォルダにあってもコミットしない =====
+# （tests/test_gitignore.py で検証しています）
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.aif
+*.aiff
+*.ogg
+*.opus
+*.wma
+*.caf
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.srt
+*.vtt
+*.ass
+*.log
+transcripts/
+transcript/
+
+# 入出力・素材フォルダは中身ごと除外（空フォルダ維持用の .gitkeep だけ残す）
 input/*
 !input/.gitkeep
 output/*
 !output/.gitkeep
 assets/*
 !assets/.gitkeep
+
+# Python
 __pycache__/
 *.pyc
 *.egg-info/
