@@ -275,6 +275,11 @@ details.fold summary::before{content:"＋";font-weight:700;width:1em;flex:none}
 details.fold[open] summary::before{content:"－"}
 details.fold[open] summary{padding-bottom:4px}
 details.fold[open] > *:not(summary):first-of-type{margin-top:10px}
+.pdf-link{margin-top:22px}
+.pdf-link a{color:var(--yam-w);font-weight:700;text-decoration:none;
+  border-bottom:2px solid rgba(154,91,16,.45)}
+.pdf-link a:hover,.pdf-link a:focus-visible{border-bottom-color:var(--yam-w)}
+.pdf-note{margin-top:7px;font-size:13px;line-height:1.85;color:var(--mute)}
 
 /* ===== ジャンプ目次（ヒーロー直下、独立した帯） ===== */
 .jump{background:var(--green-d);display:flex;flex-wrap:wrap}
@@ -647,6 +652,8 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
         <tr><th scope="row">演劇パスポート</th><td class="amt">全員にお渡しします</td><td class="rem">参加するたびにスタンプがたまる、あなただけの手帳です。歩いた記録が残ります。</td></tr>
       </table>
     </div>
+    <p class="pdf-link rv"><a href="https://drive.google.com/file/d/13Cm2JrAA0OPLKNooKOl0LBDN5hp0Ze0E/view" target="_blank" rel="noopener">2027年1月からの会費のご案内を見る（PDF）</a></p>
+    <p class="pdf-note">2027年1月から、会費を1か月・3か月・半年・1年から選べるようになります。<br>2026年12月までの会費は、これまでどおりです。</p>
   </details>
 
 </section>
