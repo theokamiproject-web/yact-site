@@ -1,7 +1,8 @@
-"""雑誌対談向けの整文（LLM）。音声認識・話者分離から独立したモジュール。
+"""雑誌対談向けの整文。音声認識・話者分離から独立したモジュール。
 
-- プロバイダは差し替え可能: rule（LLMなし）/ claude / openai / local（OpenAI互換API）
-- APIキーは環境変数（.env）から読む。コードには書かない。
+- 標準は rule（外部LLMなし・無料）。LLMは --editor で明示したときだけ使うオプション機能。
+- プロバイダ: rule / local（Ollama等のOpenAI互換API。無料） / claude / openai（有料API）
+- APIキーは環境変数（.env）から読む。コードには書かない。環境にキーがあっても自動では使わない。
 - 全文を一度に渡さず、話者交替・間・長さを見て会話のまとまり(chunk)に分け、
   前文脈を重複させる。出力は編集対象のturn idだけなので、重複出力は構造上発生しない。
 - 結果は chunk 単位でキャッシュし、途中失敗しても再開できる。
@@ -18,6 +19,8 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+
+from text_utils import tidy_punct
 
 PROMPT_VERSION = "v1"
 DROP_TOKEN = "<削除>"
@@ -130,21 +133,15 @@ class OpenAICompatEditor(BaseEditor):
         return res["choices"][0]["message"]["content"]
 
 
-def get_editor(provider: str = "auto", model: str | None = None) -> BaseEditor:
-    """provider: auto | rule | claude | openai | local。auto はキーがある順に claude → openai → rule。"""
+def get_editor(provider: str | None = None, model: str | None = None) -> BaseEditor:
+    """provider: rule（標準・LLM不使用）| local（OpenAI互換のローカルLLM）| claude | openai。
+
+    標準は rule。APIキーが環境にあっても、明示指定がなければ外部APIは呼ばない。
+    """
     env = os.environ
-    provider = (provider or env.get("EDITOR_PROVIDER") or "auto").lower()
+    provider = (provider or env.get("EDITOR_PROVIDER") or "rule").lower()
     model = model or env.get("EDITOR_MODEL")
-    if provider == "auto":
-        if env.get("ANTHROPIC_API_KEY"):
-            provider = "claude"
-        elif env.get("OPENAI_API_KEY"):
-            provider = "openai"
-        elif env.get("LOCAL_LLM_BASE_URL"):
-            provider = "local"
-        else:
-            provider = "rule"
-    if provider == "rule":
+    if provider in ("rule", "auto", "none"):
         return RuleEditor()
     if provider == "claude":
         key = env.get("ANTHROPIC_API_KEY")
@@ -259,7 +256,7 @@ def run_edit(turns: list[dict], editor: BaseEditor, cache_path: Path | None = No
     notes: list[str] = []
     if isinstance(editor, RuleEditor):
         for t in turns:
-            texts[t["id"]] = t["clean_text"]
+            texts[t["id"]] = tidy_punct(t["clean_text"])
             sources[t["id"]] = "rule"
         return EditResult(texts, sources, notes)
 

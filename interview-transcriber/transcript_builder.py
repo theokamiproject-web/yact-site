@@ -12,7 +12,8 @@ from pathlib import Path
 
 from diarization import UNKNOWN_SPEAKER, overlap_by_speaker, speaker_labels
 from text_utils import (
-    UNCLEAR_RE, ends_with_question, fmt_ts, is_backchannel, rule_clean,
+    UNCLEAR_RE, close_paragraph, ends_with_question, fmt_ts, is_backchannel, join_fragments,
+    rule_clean, tidy_punct,
 )
 
 SENT_END = "。？！?!"
@@ -207,26 +208,6 @@ def apply_clean(turns: list[dict]) -> None:
 
 
 # ------------------------------------------------------------------ render
-def merge_runs(turns: list[dict], text_key: str, drop_key: str | None, max_chars: int = 260) -> list[dict]:
-    """描画用: 削除されなかった同一話者の連続turnを1段落へ。別話者が挟まれば分ける。"""
-    runs: list[dict] = []
-    for t in turns:
-        if drop_key and t.get(drop_key):
-            continue
-        text = (t.get(text_key) or "").strip()
-        if not text:
-            continue
-        p = runs[-1] if runs else None
-        if p and t["speaker_id"] is not None and p["speaker_id"] == t["speaker_id"] \
-                and len(p["text"]) + len(text) <= max_chars:
-            p["text"] += text
-            p["ids"].append(t["id"])
-        else:
-            runs.append({"speaker_id": t["speaker_id"], "speaker_name": t["speaker_name"],
-                         "start": t["start"], "text": text, "ids": [t["id"]]})
-    return runs
-
-
 def render_raw(turns: list[dict], title: str, labels: dict[str, str]) -> str:
     out = [f"# 逐語録（{title}）", ""]
     out += ["話者の割り当て: " + (" / ".join(f"{k}={v}" for k, v in sorted(labels.items())) or "なし（話者分離なし）"), "",
@@ -236,16 +217,67 @@ def render_raw(turns: list[dict], title: str, labels: dict[str, str]) -> str:
     return "\n".join(out)
 
 
-def render_edited(turns: list[dict], title: str, heading: str, text_key: str, drop_key: str | None,
-                  timestamps: bool = False, note: str | None = None) -> str:
-    out = [f"# {heading}（{title}）", ""]
+def render_clean(turns: list[dict], title: str, timestamps: bool = False) -> str:
+    """02: 発言(turn)単位。別turnを勝手に結合しない（削除された相槌は飛ばすだけ）。"""
+    out = [f"# 軽い整文版（{title}）", "",
+           "> フィラー・語頭の言い直し・重複・単独の相槌のみを整理した版です（ルールベース、外部LLM不使用）。", ""]
+    for t in turns:
+        text = (t.get("clean_text") or "").strip()
+        if t.get("clean_dropped") or not text:
+            continue
+        out += [f"{t['speaker_name']}：", text]
+        if timestamps:
+            out += ["", f"[{fmt_ts(t['start'])}]"]
+        out.append("")
+    return "\n".join(out)
+
+
+def magazine_blocks(turns: list[dict], text_key: str = "edited_text", para_min: int = 120,
+                    para_max: int = 240, para_pause: float = 1.0) -> list[dict]:
+    """同一話者の連続発言を1ブロックに結合し、長ければ段落に分ける。
+
+    - 別話者が間に入る／話者不明のturnは結合しない
+    - 段落分けは、文末で区切れ、かつ（長い間があり一定量に達した or 上限超え）のとき
+    - turn の ids / start を段落ごとに保持し、元のタイムコードへ遡れる
+    """
+    blocks: list[dict] = []
+    prev_turn = None
+    for t in turns:
+        text = (t.get(text_key) or "").strip()
+        if not text:
+            continue
+        b = blocks[-1] if blocks else None
+        same = (b is not None and t["speaker_id"] is not None and b["speaker_id"] == t["speaker_id"])
+        if same:
+            para = b["paras"][-1]
+            ends_sentence = para["text"][-1:] in "。？！?!」"
+            long_pause = (prev_turn.get("pause_after") or 0.0) >= para_pause
+            if ends_sentence and ((len(para["text"]) >= para_min and long_pause) or len(para["text"]) >= para_max):
+                b["paras"].append({"text": text, "start": t["start"], "ids": [t["id"]]})
+            else:
+                para["text"] = join_fragments(para["text"], text)
+                para["ids"].append(t["id"])
+        else:
+            blocks.append({"speaker_id": t["speaker_id"], "speaker_name": t["speaker_name"],
+                           "paras": [{"text": text, "start": t["start"], "ids": [t["id"]]}]})
+        prev_turn = t
+    for b in blocks:
+        for p in b["paras"]:
+            p["text"] = close_paragraph(tidy_punct(p["text"]))
+    return blocks
+
+
+def render_magazine(turns: list[dict], title: str, timestamps: bool = False, note: str | None = None) -> str:
+    out = [f"# 対談（{title}）", ""]
     if note:
         out += [f"> {note}", ""]
-    for r in merge_runs(turns, text_key, drop_key):
-        out += [f"{r['speaker_name']}：", r["text"]]
-        if timestamps:
-            out += ["", f"[{fmt_ts(r['start'])}]"]
-        out.append("")
+    for b in magazine_blocks(turns):
+        out.append(f"{b['speaker_name']}：")
+        for i, p in enumerate(b["paras"]):
+            out.append(p["text"])
+            if timestamps:
+                out += ["", f"[{fmt_ts(p['start'])}]"]
+            out.append("")
     return "\n".join(out)
 
 

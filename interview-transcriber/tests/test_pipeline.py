@@ -169,7 +169,7 @@ def test_parse_output_ignores_foreign_ids_and_duplicates():
 
 
 # ------------------------------------------------------------ end to end (偽LLM)
-def run_cli(tmp_path, monkeypatch, llm_url, extra=()):
+def run_cli(tmp_path, monkeypatch, llm_url, extra=(), editor="claude"):
     """キャッシュだけで実行（音声・WhisperX不要）。"""
     aligned, diar = make_aligned(LINES)
     cdir = tmp_path / "cache" / "talk"
@@ -185,7 +185,7 @@ def run_cli(tmp_path, monkeypatch, llm_url, extra=()):
     out = tmp_path / "out"
     rc = cli.main([str(tmp_path / "talk.m4a"), "--skip-transcription", "--cache-dir", str(tmp_path / "cache"),
                    "--output-dir", str(out), "--speakers", str(spk), "--dictionary", str(tmp_path / "none.yaml"),
-                   *extra])
+                   *(["--editor", editor] if editor else []), *extra])
     return rc, out
 
 
@@ -220,7 +220,6 @@ def test_e2e_good_llm(tmp_path, monkeypatch):
     assert data[0]["start"] == 0.0 and data[0]["speaker_name"] == "真坂"
     mag = (out / "03_magazine_interview.md").read_text()
     assert "真坂：\n最初はですね" in mag and "[00:" not in mag  # 既定ではタイムコードなし
-    assert "はい。\n" not in mag.replace("そうなんですよ。", "")
 
 
 def test_e2e_bad_llm_is_rejected_and_reported(tmp_path, monkeypatch):
@@ -262,7 +261,8 @@ def test_e2e_edit_resume_uses_cache(tmp_path, monkeypatch):
         # 出力と同じ cache を使って再編集 → LLMは呼ばれない
         (tmp_path / "out" / "03_magazine_interview.md").unlink()
         cli.main([str(tmp_path / "talk.m4a"), "--skip-transcription", "--cache-dir", str(tmp_path / "cache"),
-                  "--output-dir", str(tmp_path / "out"), "--dictionary", str(tmp_path / "none.yaml")])
+                  "--output-dir", str(tmp_path / "out"), "--dictionary", str(tmp_path / "none.yaml"),
+                  "--editor", "claude"])
         assert len(llm.calls) == n
         assert (tmp_path / "out" / "03_magazine_interview.md").exists()
     finally:
@@ -275,3 +275,112 @@ def test_raw_only_and_skip_edit(tmp_path, monkeypatch):
     rc, out2 = run_cli(tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, monkeypatch,
                        "http://127.0.0.1:1", ["--skip-edit"])
     assert (out2 / "02_clean_transcript.md").exists() and not (out2 / "03_magazine_interview.md").exists()
+
+
+# ------------------------------------------------------------ 無料・ルールベースが標準
+def test_default_run_never_calls_paid_api_even_if_key_is_set(tmp_path, monkeypatch):
+    llm = FakeLLM(echo_clean)
+    try:
+        rc, out = run_cli(tmp_path, monkeypatch, llm.url, editor=None)  # --editor 指定なし
+    finally:
+        llm.close()
+    assert rc == 0 and llm.calls == []
+    data = json.loads((out / "transcript.json").read_text())
+    assert {d["edit_source"] for d in data} == {"rule"}
+    assert (out / "03_magazine_interview.md").exists()
+
+
+def test_default_run_completes_without_any_keys_or_hf_token(tmp_path, monkeypatch):
+    """キャッシュに話者分離が無い＝HF_TOKENなし相当でも、最後まで完走し話者不明で出力する。"""
+    for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "HF_TOKEN", "EDITOR_PROVIDER", "LOCAL_LLM_BASE_URL"):
+        monkeypatch.delenv(k, raising=False)
+    aligned, _ = make_aligned(LINES)
+    cdir = tmp_path / "cache" / "talk"
+    cdir.mkdir(parents=True)
+    (cdir / "whisper_result.json").write_text(json.dumps({"segments": aligned["segments"], "language": "ja"}))
+    (cdir / "aligned_result.json").write_text(json.dumps(aligned))
+    out = tmp_path / "out"
+    rc = cli.main([str(tmp_path / "talk.m4a"), "--skip-transcription", "--cache-dir", str(tmp_path / "cache"),
+                   "--output-dir", str(out), "--dictionary", str(tmp_path / "none.yaml")])
+    assert rc == 0
+    for f in ["01_raw_transcript.md", "02_clean_transcript.md", "03_magazine_interview.md",
+              "transcript.json", "review_required.md"]:
+        assert (out / f).exists(), f
+    assert "話者不明" in (out / "03_magazine_interview.md").read_text()
+
+
+def test_explicit_unreachable_llm_falls_back_to_rule(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCAL_LLM_BASE_URL", "")  # local 指定だが未設定 → エラーにせずルール整文
+    rc, out = run_cli(tmp_path, monkeypatch, "http://127.0.0.1:1", editor="local")
+    assert rc == 0 and (out / "03_magazine_interview.md").exists()
+    assert "初期化できませんでした" in (out / "review_required.md").read_text()
+
+
+# ------------------------------------------------------------ ルールベース整文の強化
+def test_restart_and_stutter_cleanup():
+    assert rule_clean("や、やろうとは、あの、思ってなかったんですよね。") == "やろうとは、思ってなかったんですよね。"
+    assert rule_clean("この、この企画について。") == "この企画について。"
+    assert rule_clean("はい、はいはい。") == "はい、はいはい。"  # 相槌の反復は触らない
+
+
+def test_backchannel_sequences():
+    assert is_backchannel("はいはい。") and is_backchannel("ええ、なるほど。")
+    assert not is_backchannel("はい、参加者は30人でした。")
+
+
+def test_spec_magazine_example_fragments_are_joined():
+    """仕様の例: 3つの細切れ発言が1つの読みやすい発言になる（語句は足さない）。"""
+    lines = [("SPEAKER_00", "えー、最初は、"), ("SPEAKER_00", "まあ、そんな大きなことを、"),
+             ("SPEAKER_00", "やろうとは、あの、思ってなかったんですよね。")]
+    aligned, diar = make_aligned(lines)
+    turns = tb.build_turns(aligned, diar, merge_gap=0.0)  # 細切れのまま
+    tb.apply_speaker_names(turns, {"SPEAKER_00": "真坂"})
+    tb.apply_clean(turns)
+    for t in turns:
+        t["edited_text"] = editor.tidy_punct(t["clean_text"])
+    mag = tb.render_magazine(turns, "x")
+    assert "真坂：\n最初は、そんな大きなことを、やろうとは、思ってなかったんですよね。" in mag
+    assert mag.count("真坂：") == 1
+
+
+def test_magazine_does_not_merge_across_other_speaker_and_drops_backchannel():
+    turns = build()
+    for t in turns:
+        t["edited_text"] = editor.tidy_punct(t["clean_text"])
+    mag = tb.render_magazine(turns, "x")
+    # 真坂 → 寺戸(質問) → 真坂(返答+続き)。寺戸の単独相槌「はい」は削除され、前後の真坂は結合される
+    assert mag.count("真坂：") == 2 and mag.count("寺戸：") == 1
+    assert "寺戸：\nはい" not in mag and "そうだったんですか？" in mag
+
+
+def test_long_monologue_is_split_into_paragraphs_keeping_one_label():
+    sent = "地域で活動しているうちに、これはもっと続けられるんじゃないかと思うようになりました。"
+    lines = [("SPEAKER_00", sent)] * 8
+    aligned, diar = make_aligned(lines)
+    turns = tb.build_turns(aligned, diar, merge_gap=0.0)
+    tb.apply_speaker_names(turns, {"SPEAKER_00": "真坂"})
+    tb.apply_clean(turns)
+    for t in turns:
+        t["edited_text"] = t["clean_text"]
+    blocks = tb.magazine_blocks(turns)
+    assert len(blocks) == 1 and len(blocks[0]["paras"]) >= 2
+    assert sum(len(p["ids"]) for p in blocks[0]["paras"]) == len(turns)  # 全turnを保持（追跡可能）
+    assert all(len(p["text"]) <= 260 for p in blocks[0]["paras"])
+
+
+def test_clean_is_per_turn_not_merged():
+    turns = build()
+    clean = tb.render_clean(turns, "x")
+    assert clean.count("真坂：") == 3  # turnをまたいだ結合はしない
+
+
+def test_join_fragments_adds_comma_only_after_connective_endings():
+    from text_utils import join_fragments
+    assert join_fragments("最初は", "そんな大きなことを") == "最初は、そんな大きなことを"
+    assert join_fragments("そんな大きなことを", "やろうと") == "そんな大きなことをやろうと"
+    assert join_fragments("やりました。", "次に") == "やりました。次に"
+
+
+def test_punctuation_tidy_and_paragraph_close():
+    assert editor.tidy_punct("それは，本当です。。 ね?") == "それは、本当です。ね？"
+    assert tb.close_paragraph("続きます、") == "続きます。"

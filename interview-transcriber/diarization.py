@@ -11,12 +11,14 @@ from pathlib import Path
 import yaml
 
 UNKNOWN_SPEAKER = "話者不明"
+DEFAULT_DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
 
 
 def run_diarization(wav: Path, device: str, hf_token: str | None,
                     num_speakers: int | None = None, min_speakers: int | None = None,
                     max_speakers: int | None = None, model_name: str | None = None) -> list[dict]:
-    """[{start, end, speaker}] を返す。"""
+    """[{start, end, speaker}] を返す。既定モデルは pyannote/speaker-diarization-community-1。"""
+    model_name = model_name or DEFAULT_DIARIZATION_MODEL
     if not hf_token:
         raise RuntimeError("HF_TOKEN が未設定です（.env に設定してください）。")
     import whisperx

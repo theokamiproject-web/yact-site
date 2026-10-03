@@ -60,7 +60,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
     p.add_argument("--no-prompt-dictionary", action="store_true", help="辞書をWhisperの初期プロンプトに使わない")
-    p.add_argument("--editor", default="auto", choices=["auto", "rule", "claude", "openai", "local"])
+    p.add_argument("--editor", default=None, choices=["rule", "local", "claude", "openai"],
+                   help="整文方式。標準は rule（外部LLMなし・無料）。local=Ollama等のOpenAI互換API、claude/openai=有料API（明示時のみ）")
+    p.add_argument("--diarization-model", default=os.environ.get("DIARIZATION_MODEL"),
+                   help=f"既定: {diarization.DEFAULT_DIARIZATION_MODEL}")
     p.add_argument("--editor-model")
     p.add_argument("--chunk-chars", type=int, default=2500, help="LLMに渡す1chunkの目安文字数")
     p.add_argument("--mark-unclear-logprob", type=float, default=None,
@@ -134,7 +137,8 @@ def main(argv=None) -> int:
 
     # ---------------- STEP5 話者分離
     diar = wx.cache_load(f_diar)
-    dkey = {"num": a.num_speakers, "min": a.min_speakers, "max": a.max_speakers}
+    dmodel = a.diarization_model or diarization.DEFAULT_DIARIZATION_MODEL
+    dkey = {"num": a.num_speakers, "min": a.min_speakers, "max": a.max_speakers, "model": dmodel}
     if diar and not a.skip_transcription and diar.get("key") != dkey:
         diar = None
     if diar:
@@ -149,9 +153,9 @@ def main(argv=None) -> int:
     else:
         try:
             wav = wav or wx.preprocess(a.audio, a.temp_dir, cfg.normalize)
-            log("[話者分離] 実行中")
+            log(f"[話者分離] 実行中 ({dmodel})")
             diar_segments = diarization.run_diarization(
-                wav, device, os.environ.get("HF_TOKEN"), a.num_speakers, a.min_speakers, a.max_speakers)
+                wav, device, os.environ.get("HF_TOKEN"), a.num_speakers, a.min_speakers, a.max_speakers, dmodel)
             wx.cache_save(f_diar, {"key": dkey, "segments": diar_segments})
         except Exception as e:  # noqa: BLE001 - 話者分離が失敗しても文字起こしは残す
             diar_segments = None
@@ -206,9 +210,7 @@ def main(argv=None) -> int:
     for t in turns:
         t["edited_text"], t["edited_dropped"], t["edit_source"] = None, None, None
     tb.write_json(out_dir / "transcript.json", turns)
-    (out_dir / "02_clean_transcript.md").write_text(
-        tb.render_edited(turns, title, "軽い整文版", "clean_text", "clean_dropped", a.timestamps,
-                         note="フィラー・重複・単純な相槌のみを整理した版です。"), encoding="utf-8")
+    (out_dir / "02_clean_transcript.md").write_text(tb.render_clean(turns, title, a.timestamps), encoding="utf-8")
     log("[出力] 02_clean_transcript.md")
     if a.skip_edit:
         return finish()
@@ -216,11 +218,9 @@ def main(argv=None) -> int:
     try:
         ed = editormod.get_editor(a.editor, a.editor_model)
     except editormod.EditorError as e:
-        notes.append(f"LLMエディタを初期化できませんでした（{e}）。ルール整文で雑誌版を作成しました。")
+        notes.append(f"指定されたLLMエディタを初期化できませんでした（{e}）。ルール整文で雑誌版を作成しました。")
         log(f"[警告] {notes[-1]}")
         ed = editormod.RuleEditor()
-    if isinstance(ed, editormod.RuleEditor) and a.editor == "auto":
-        notes.append("APIキーが未設定のため LLM を使わず、ルール整文のみで雑誌版を作成しました（.env に ANTHROPIC_API_KEY 等を設定）。")
     result = editormod.run_edit(turns, ed, cdir / "edit_cache.json", target_chars=a.chunk_chars)
     notes += result.notes
 
@@ -247,10 +247,14 @@ def main(argv=None) -> int:
         n = sum(1 for t in turns if t["edit_source"] == "llm-rejected")
         notes.append(f"{n} 発言でLLMの編集が重大な逸脱（数字・固有名詞・話者・聞き取り不明の変化など）を含んだため不採用とし、clean版の文を使っています。")
 
-    note = ("LLM未使用（ルールベース整文）" if isinstance(ed, editormod.RuleEditor)
-            else f"編集: {ed.name}/{ed.model}") + "。内容の正確性は review_required.md を確認してください。"
+    note = ("ルールベース整文（外部LLM不使用）" if isinstance(ed, editormod.RuleEditor)
+            else f"編集: {ed.name}/{ed.model}")
+    note += "。同一話者の細切れ発言の結合・段落分け・句読点整理のみで、文面の書き換えはしていません。"
+    if not diar_segments:
+        note += "話者分離が行われていないため、話者は「話者不明」です。"
+    note += "掲載前に review_required.md と音声で確認してください。"
     (out_dir / "03_magazine_interview.md").write_text(
-        tb.render_edited(turns, title, "対談", "edited_text", None, a.timestamps, note=note), encoding="utf-8")
+        tb.render_magazine(turns, title, a.timestamps, note=note), encoding="utf-8")
     tb.write_json(out_dir / "transcript.json", turns)
     log("[出力] 03_magazine_interview.md / transcript.json 更新")
     return finish()

@@ -4,15 +4,18 @@
 音声認識・話者分離は [WhisperX](https://github.com/m-bain/whisperX)（faster-whisper + pyannote）を**依存ライブラリとして**利用し、
 話者名の置換・整文・品質チェック・出力はこのプロジェクト側で実装しています（WhisperX本体は改造していません）。
 
-最優先は **発言の正確性** です。音声にない内容の追加・数字や固有名詞の変更・聞き取れない箇所の補完を禁じ、機械的に検査して `review_required.md` に出します。
+**標準動作は完全に無料・外部API不要**です（WhisperX + pyannote + ルールベース整文）。`python transcribe_interview.py interview.m4a` だけで最後まで完走します。
+目標は「完全な雑誌完成稿の自動生成」ではなく、**誰が・何を・どの順番で話したかを正確に取り出し、人が少し直せば原稿になる状態**にすることです。
+最優先は **発言の正確性** です。音声にない内容の追加・数字や固有名詞の変更・聞き取れない箇所の補完をせず、機械的に検査して `review_required.md` に出します。
 
 ## 処理の流れ
 
 ```
 音声 → ffmpeg前処理(16kHz/mono/音量正規化) → WhisperX文字起こし → alignment(文字単位の時刻)
-     → 話者分離(pyannote) → 発言(turn)化 → 01 逐語録
+     → 話者分離(pyannote community-1) → 発言(turn)化 → 01 逐語録
      → ルール整文 → 02 軽い整文版
-     → LLM整文(chunk分割) → 品質チェック → 03 雑誌版 / transcript.json / review_required.md
+     → 結合・段落分け・句読点整理 → 品質チェック → 03 対談原稿 / transcript.json / review_required.md
+     （外部LLMは標準では使わない。任意でローカルLLM等を差し込める）
 ```
 
 各段階の結果は `cache/<音声名>/` に個別保存され、途中で止まっても再開できます。
@@ -42,26 +45,20 @@ winget install ffmpeg        # Windows
 - 既定モデルは `large-v3`。**CPUでは非常に遅い**ため `--model small` か `medium` を推奨します。
 - 手動指定: `--device cuda|cpu`、`--compute-type float16|int8|...`
 
-### Hugging Face トークン（話者分離に必須）
-pyannote の話者分離モデルは**ゲート付き**です。
+### Hugging Face トークン（話者分離。無料）
+話者分離は `pyannote/speaker-diarization-community-1`（`--diarization-model` / `DIARIZATION_MODEL` で変更可）。モデルは**ゲート付き**です。
 
 1. <https://huggingface.co> でアカウント作成、read 権限のトークンを発行
-2. 次のモデルページで利用条件に同意: `pyannote/speaker-diarization-community-1`（および表示される依存モデル）
+2. `pyannote/speaker-diarization-community-1` のページで利用条件に同意
 3. `.env` に `HF_TOKEN=hf_...` を記入
 
-トークンが無い／同意していない場合、話者分離だけが失敗し、文字起こしは**話者「話者不明」で出力されます**（警告は `review_required.md` に記載）。
+**トークンが無い／同意していなくてもエラー終了しません。** 話者分離だけが失敗し、文字起こしは「話者不明」で全ファイルが出力されます（警告は `review_required.md` に記載）。
 
-### LLM（雑誌版の整文）用 APIキー
-`.env` に設定します。コードには書きません。**どれも未設定ならLLMを使わず、ルール整文のみ**で雑誌版を作ります。
-
-| 変数 | 内容 |
-|---|---|
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Claude（既定 `claude-sonnet-5-5`） |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | OpenAI |
-| `LOCAL_LLM_BASE_URL` / `LOCAL_LLM_MODEL` | Ollama・llama.cpp 等 OpenAI互換のローカルLLM |
-| `EDITOR_PROVIDER` | `auto`(既定: claude→openai→local→rule) / `claude` / `openai` / `local` / `rule` |
-
-プロバイダの追加は `editor.py` の `BaseEditor.complete()` を実装するだけです。
+### 整文について（APIキー不要）
+- 02・03 は**ルールベース**で生成します。有料APIは必要なく、環境に `ANTHROPIC_API_KEY` などがあっても**自動では使いません**。
+- 任意機能: 既にあるローカルLLM（Ollama等のOpenAI互換API）を使う場合のみ `.env` に `LOCAL_LLM_BASE_URL` を設定し `--editor local`。新たにOllamaや大きなモデルを入れる必要はありません。
+- `--editor claude` / `--editor openai` も残していますが、有料APIであり、使う場合は明示指定が必要です。LLM案は品質チェックで数字・固有名詞などの逸脱が見つかると不採用になります。
+- プロバイダの追加は `editor.py` の `BaseEditor.complete()` を実装するだけです。
 
 ## 使い方
 
@@ -81,11 +78,12 @@ python transcribe_interview.py interview.m4a \
 | `--min-speakers` / `--max-speakers` / `--num-speakers` | 話者数の指定（分かっていれば精度向上） |
 | `--timestamps` | clean版・雑誌版の各発言末尾に `[HH:MM:SS]` を付ける |
 | `--raw-only` | 逐語録と JSON だけ |
-| `--skip-edit` | LLM編集をしない（raw と clean のみ） |
+| `--skip-edit` | 雑誌版（03）を作らない（raw と clean のみ） |
 | `--skip-transcription` | キャッシュ済みの認識・話者分離を再利用して**編集だけやり直す** |
 | `--force` | キャッシュを無視 |
 | `--no-diarize` | 話者分離しない |
-| `--editor` / `--editor-model` / `--chunk-chars` | LLM編集の設定 |
+| `--editor rule\|local\|claude\|openai` | 整文方式。**標準は rule（無料・外部LLMなし）** |
+| `--diarization-model` | 話者分離モデル（既定 community-1） |
 | `--mark-unclear-logprob -1.0` | 【実験的】低信頼の発言を `[聞き取り不明 HH:MM:SS]` に置換（原文は JSON の `unclear` に退避） |
 
 対応形式: mp3 / wav / m4a / mp4（ほか ffmpeg が読めるもの）。元ファイルは変更しません。一時ファイルは `temp/`。
@@ -129,8 +127,8 @@ projects: [アキタウミヨコお座敷シアター]
 | ファイル | 内容 |
 |---|---|
 | `01_raw_transcript.md` | 逐語録。フィラー保持、各発言にタイムコード |
-| `02_clean_transcript.md` | フィラー・重複・単純な相槌のみ整理（ルールベース） |
-| `03_magazine_interview.md` | 雑誌対談向け整文（LLM。無ければルール整文） |
+| `02_clean_transcript.md` | 読みやすい逐語録。発言単位のまま、フィラー・語頭の言い直し・重複・単独の相槌のみ整理 |
+| `03_magazine_interview.md` | 対談原稿の素材（細切れ発言の結合・段落分け・句読点整理。ルールベース） |
 | `transcript.json` | 発言ごとの構造化データ |
 | `review_required.md` | 品質チェックの要確認一覧 |
 
@@ -178,10 +176,21 @@ LLMの提案（不採用・clean版へ差し戻し）:
 
 ## 編集と品質チェックの方針
 
-- **LLMへの制約**: 追加・要約・発言創作・話者変更・数字/日付変更・固有名詞の推測・聞き取り不明の補完を禁止（`editor.py` の `SYSTEM_PROMPT`）。
-- **長時間音声**: 全文を一度に渡さず、話者交替・間・文末を見て約2,500字ごとの chunk に分割し、直前3発言を文脈として重複させます。出力は編集対象の発言IDだけなので、重複出力は構造上起きません。
-- **自動チェック**（`quality_check.py`）: 数字・年月日・金額の追加/変更、固有名詞の追加、別話者の文言混入、大量削除、`[聞き取り不明]` の補完、否定の増減・「たぶん」「〜くらい」等の強弱語の増減、内容の乖離。
-- **重大な逸脱はLLM案を採用しません**（数字・固有名詞・話者・聞き取り不明の変化など）。clean版の文に差し戻し、LLM案を `review_required.md` に残します。
+| | 01 逐語録 | 02 clean | 03 対談原稿 |
+|---|---|---|---|
+| フィラー（えー・あのー・そのー等）・語頭の言い直し・同語反復 | 残す | 除去 | 除去 |
+| 単独の相槌（はい・うん・そうですね…） | 残す | 除去（※） | 除去（※） |
+| 発言の単位 | turn | turn（結合しない） | 同一話者の連続発言を結合、長ければ段落分け |
+| 句読点・空白・記号 | そのまま | そのまま | 整理（全角化・重複除去・段落末の句点） |
+| 話者名・順序 | 保持 | 保持 | 保持（別話者が挟まれば結合しない） |
+
+※ 質問への返答（直前が「？」）・「？」を含む発言・話者が確定していない発言は残します。
+
+- **文面は書き換えません。** 「そんな」を「そんなに」にする等の補完・言い換え・作文はしません。削る・つなぐ・句読点を整えるだけです。
+- 「まあ」「なんか」「あの」「その」は、読点を伴う文節頭のときだけ除去します（「あの人」「その後」を壊さないため）。助詞に直付けの「それはまあ、」のような用法は意味を持つ場合があるので残します。
+- 段落分け: 文末で、間が1秒以上あり120字以上たまったとき、または240字を超えたとき。
+- **自動チェック**（`quality_check.py`）: 数字・年月日・金額の追加/変更、固有名詞の追加、別話者の文言混入、大量削除、`[聞き取り不明]` の補完、否定の増減・「たぶん」「〜くらい」等の強弱語の増減、内容の乖離、認識の幻覚疑い、話者判定の不確実。
+- LLMを任意で使った場合、重大な逸脱（数字・固有名詞・話者・聞き取り不明の変化など）は不採用にして整文済みの文に差し戻し、LLM案を `review_required.md` に残します。長時間音声は話者交替・間・文末を見て約2,500字ごとに分割し、直前3発言を文脈として重複させます。
 
 ## 既知の制限（必ず読んでください）
 
@@ -189,7 +198,7 @@ LLMの提案（不採用・clean版へ差し戻し）:
 - **「聞き取り不明」の自動検出は弱いです。** WhisperXの文字スコアは正しい文字でも 0 になることがあり、信頼できません。既定では発言の平均対数確率が低い発言を「参考」として列挙するだけで、本文は置換しません（`--mark-unclear-logprob` は実験的）。Whisperは聞き取れない箇所に**もっともらしい文を出力することがあります**。固有名詞・数字は特に聞き直してください。
 - 無音区間で出やすい幻覚定型句（「ご視聴ありがとうございました」等）は検出して参考に出します。
 - 話者分離は完全ではありません。短い相槌（約0.6秒/4文字未満）は文中では前後の話者へ吸収されます。重なり発話は `話者不明` になります。
-- 既定のルール整文は保守的です（「まあ」「なんか」などは読点を伴うときだけ除去）。雑誌水準の整文はLLMが担います。
+- ルール整文は保守的です。雑誌の完成稿にはなりません（語尾の統一・言い換え・要約はしません）。人が校正する前提の素材です。
 
 ## トラブルシューティング
 
@@ -200,13 +209,13 @@ LLMの提案（不採用・clean版へ差し戻し）:
 | alignment で `punkt_tab not found` | `python -c "import nltk; nltk.download('punkt_tab')"`。ネットワークがプロキシ経由でNLTKに拒否される場合は、<https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/tokenizers/punkt_tab.zip> を `~/nltk_data/tokenizers/` に展開。失敗しても単語時刻なしで続行します |
 | CUDA out of memory | `--batch-size 4`、`--compute-type int8`、小さいモデル |
 | CPUで終わらない | `--model small`/`medium`。所要時間の目安（未実測）: CPUでは音声長の1倍前後以上 |
-| LLMが失敗する | 該当chunkはルール整文で代替され、再実行で続きから。キー・モデル名・残高を確認 |
-| 雑誌版が硬い／くだけすぎ | `editor.py` の `SYSTEM_PROMPT` を調整し `--skip-transcription` で再編集（`PROMPT_VERSION` を上げるとキャッシュが無効化されます） |
+| 任意のLLM(`--editor local`等)が失敗する | 該当chunkはルール整文で代替され、再実行で続きから。URL・モデル名を確認 |
+| 整文を変えたい | `text_utils.py` のフィラー規則等を調整し `--skip-transcription` で再編集（認識・話者分離はキャッシュ再利用） |
 
 ## テスト
 
 ```bash
-python -m pytest tests -q          # 25件。WhisperX・音声不要（偽LLMサーバを使用）
+python -m pytest tests -q          # 36件。WhisperX・音声不要（偽LLMサーバを使用）
 python tests/make_sample_audio.py samples/sample_dialogue.m4a   # open_jtalk で合成音声を作る（任意）
 ```
 

@@ -63,6 +63,15 @@ def _dedupe_repeats(text: str) -> str:
     return text
 
 
+_RESTART_RE = re.compile(r"(?:^|(?<=[、。？！?!]))([ぁ-んァ-ヶ一-龥]{1,3})、(?=\1[ぁ-んァ-ヶー一-龥])")
+_NO_RESTART = {"はい", "ええ", "うん", "いや", "ない", "そう"}
+
+
+def _dedupe_restarts(text: str) -> str:
+    """『や、やろうと』『この、この企画』のような語頭の言い直しを1つにする（はい/ええ等は除く）。"""
+    return _RESTART_RE.sub(lambda m: m.group(0) if m.group(1) in _NO_RESTART else "", text)
+
+
 def rule_clean(text: str) -> str:
     """フィラー除去・直接反復の整理・読点の整形。意味のある語は消さない。"""
     if not text:
@@ -80,6 +89,7 @@ def rule_clean(text: str) -> str:
         t = _RE_FILLER_ALWAYS.sub("", t)
         t = _RE_FILLER_COMMA.sub("", t)
     t = _dedupe_repeats(t)
+    t = _dedupe_restarts(t)
     t = re.sub(r"^[、,\s]+", "", t)
     t = re.sub(r"、{2,}", "、", t)
     t = re.sub(r"、([。？！?!])", r"\1", t)
@@ -103,9 +113,13 @@ _BACKCHANNELS = {
 }
 
 
+_BC_RE = re.compile("^(?:" + "|".join(re.escape(w) for w in sorted(_BACKCHANNELS, key=len, reverse=True)) + ")+$")
+
+
 def is_backchannel(text: str) -> bool:
+    """単独の相槌か。『はい』『そうですね』およびその連続（『はいはい』『ええ、なるほど』）。"""
     body = squash(text)
-    return bool(body) and len(body) <= 12 and body in _BACKCHANNELS
+    return bool(body) and len(body) <= 16 and bool(_BC_RE.match(body))
 
 
 def ends_with_question(text: str) -> bool:
@@ -203,3 +217,41 @@ def proper_noun_candidates(text: str, dictionary_terms: list[str] | None = None)
         if term and nfkc(term) in t:
             found.add(nfkc(term))
     return found
+
+
+# ---------------------------------------------------------------- 句読点・結合（雑誌版）
+def tidy_punct(text: str) -> str:
+    """句読点・記号・空白の整理のみ。語句は変えない。"""
+    t = text.replace("，", "、").replace("?", "？").replace("!", "！")
+    t = re.sub(r"(?<=[\u3000-ヿ一-龥])[ \t\u3000]+(?=[\u3000-ヿ一-龥])", "", t)
+    t = re.sub(r"、{2,}", "、", t)
+    t = re.sub(r"。{2,}", "。", t)
+    t = re.sub(r"、+([。？！])", r"\1", t)
+    t = re.sub(r"([。？！])、", r"\1", t)
+    return t.strip("、 \u3000")
+
+
+_COMMA_AFTER = ("は", "けど", "けれど", "から", "ので", "ですが", "ですけど", "ですけれど", "って")
+
+
+def join_fragments(prev: str, nxt: str) -> str:
+    """音声認識の細切れ発言をつなぐ。直前が句読点で終わらず、接続的な語尾なら読点を補う（語句は足さない）。"""
+    if not prev:
+        return nxt
+    if prev[-1] in "、。？！?!…」":
+        return prev + nxt
+    if len(prev) >= 3 and prev.endswith(_COMMA_AFTER):
+        return prev + "、" + nxt
+    return prev + nxt
+
+
+def close_paragraph(text: str) -> str:
+    """段落末が句点で終わっていなければ付ける（末尾の読点は句点に置き換える）。"""
+    t = text.rstrip()
+    if not t:
+        return t
+    if t[-1] in "。？！?!…」』）)":
+        return t
+    if t[-1] == "、":
+        return t[:-1] + "。"
+    return t + "。"
