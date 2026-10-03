@@ -230,6 +230,7 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
 .engi i{font-style:normal;color:var(--ink)}
 .engi .len{grid-column:2;font-size:12.5px;color:var(--mute);margin-top:-2px}
 .engi .cast{grid-column:2;font-size:13.5px;word-break:keep-all;line-break:strict}
+.engi .cast small{font-size:12px;color:var(--mute)}
 .kouen dd .note{font-size:13px;color:var(--mute)}
 .engi li+li{border-top:1px dotted var(--line);padding-top:12px}
 .kouen dd{margin:0;color:var(--ink-2)}
@@ -351,6 +352,9 @@ footer .end{margin-top:34px;padding-top:18px;border-top:1px solid rgba(255,255,2
 .sub a:hover{border-bottom-color:var(--yam-w)}
 .ouen-slot{margin-top:8px;border:1px dashed rgba(255,255,255,.32);padding:14px 16px}
 .ouen-slot p{font-size:13px;color:#CFE4E0;line-height:1.85}
+.ouen-slot .ouen-names{font-family:var(--pop);font-size:15px;color:var(--on-g);
+  line-height:1.9;margin-bottom:10px;padding-bottom:10px;
+  border-bottom:1px solid rgba(255,255,255,.22)}
 
 .kiyaku{margin-top:34px;padding-top:20px;border-top:1px solid rgba(255,255,255,.22)}
 .kiyaku p{font-size:13px;color:#CFE4E0;line-height:1.9;max-width:64ch}
@@ -720,7 +724,7 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
           <li><b>12:30</b><i>僕と君とのレベルE</i><span class="len">約30分</span>
             <span class="cast">柴田律子／さくら</span></li>
           <li><b>15:00</b><i>あきた朗読おとぎ芝居「辰子姫」</i><span class="len">約60分</span>
-            <span class="cast">桜藍／菅原代志子／菅原咲子／タエ／鎌田すかい／Yuika／藤本澪</span></li>
+            <span class="cast">桜藍／菅原代志子<small>（けやはす演劇部）</small>／菅原咲子／タエ／鎌田すかい／Yuika／藤本澪</span></li>
         </ul>
       </dd>
       <dt>会場</dt><dd>道の駅岩城「アキタウミヨコ」本館2階大広間【日本海】<br><span style="color:var(--yam-w);font-size:13.5px;font-weight:700">※ 岩城温泉「港の湯」の大広間ではありません。本館の2階です。</span></dd>
@@ -861,10 +865,13 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
   <div class="wrap">
     <div class="cols">
       <div id="ouen">
-        <h3>後援・補助</h3>
-        <p>由利本荘市「住みつづけたいまちづくり事業補助金」採択<br>由利本荘市教育委員会</p>
+        <h3>後援</h3>
+        <p>秋田県教育委員会　／　秋田魁新報社</p>
+        <h3 style="margin-top:22px">助成</h3>
+        <p>秋田県芸術文化振興基金助成事業<br>住みつづけたいまちづくり事業（由利本荘市）</p>
         <h3 style="margin-top:22px">応援してくださる企業・団体</h3>
         <div class="ouen-slot">
+          <p class="ouen-names">二田 耕平　／　小杉 利洋</p>
           <p>この欄に、応援してくださる企業・団体さまのお名前とロゴを掲載します。<br>
           年額10,000円から承っています。<a href="mailto:theokamiproject@gmail.com">ご連絡はこちら</a></p>
         </div>
