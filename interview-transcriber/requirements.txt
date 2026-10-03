@@ -1,0 +1,5 @@
+# 検証済み: Python 3.11 / whisperx 3.8.6 / torch 2.8
+whisperx>=3.8
+pyyaml>=6
+python-dotenv>=1
+pytest>=8   # テスト用（任意）
