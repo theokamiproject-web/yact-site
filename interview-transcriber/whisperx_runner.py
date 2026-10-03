@@ -34,25 +34,32 @@ class ASRConfig:
 
 
 # ------------------------------------------------------------------ ASR初期プロンプト
-# 中立ASRプロンプト。Whisperの initial_prompt は「直前の書き起こし」として扱われ、句読点の有無・文体を
-# 引き継ぐ。無いと日本語は句読点がほぼ出ず、文境界が崩れて話者境界が語の途中で切れる（実測）。
-# そのため「句読点つきの自然な文」の見本だけを与える。方針:
-#   - 指示文にしない（指示文は出力に漏れ出したり幻覚を誘う）
-#   - 話題・固有名詞・辞書語・特定の音声内容に依存する語を含めない
-#   - 短くする（長いと本来の発話を押しのける）
-# 選定根拠（Track-78、5候補を同一条件で比較。詳細は output/quality_report.md）:
-#   - 指示文（「句読点を含めて文字起こしします」）は不採用: 辞書プロンプトと同様に欠落が増え幻覚が再発した
-#   - 抽象的な短文（「それは、こうです。そして…」等）は、チャンク境界を1.5秒ずらすと欠落が旧辞書並みに悪化し不安定
-#   - この文面は、境界をずらしても欠落・句読点・語途中の話者境界が安定していた
-# 1本の音声での暫定値。内容・話題・固有名詞・辞書語は含まない。--no-neutral-prompt で無効化できる。
+# 標準では initial_prompt を渡さない。明示指定したときだけ、次のどちらか一方を渡す:
+#   --dictionary-prompt : dictionary.yaml の語から作った文（辞書プロンプト）
+#   --neutral-prompt    : 下の中立プロンプト
+# 2つは連結せず、同時指定はエラー（曖昧な動作にしない）。
+#
+# 中立プロンプトは、内容（話題・固有名詞・辞書語）に依存しない句読点つきの自然な文の見本。
+# Whisperの initial_prompt は「直前の書き起こし」として扱われ、句読点の有無を引き継ぐ。
+# 実測（Track-78・Track-79）:
+#   + プロンプトなしで句点がほぼ出ない音声（Track-78: 句点0・語途中の話者境界20）では、
+#     句点39・話者境界6へ大きく改善した
+#   - Track-79（プロンプトなしでも句読点が出る音声）では改善は小さく、チャンク末尾に短い「はい。」が
+#     別話者の独立した発言として2件増え（誘発の可能性）、英語せりふ区間の話者境界が悪化した（2→7）
+# そのため標準はOFF。句点がほぼ出ない音声で --neutral-prompt を試す、という位置づけにした。
 NEUTRAL_ASR_PROMPT = "はい、そうですね。ええと、それはですね、こういうことなんです。"
 
 
-def resolve_asr_prompt(dictionary_prompt: str | None, use_neutral: bool = True) -> tuple[str | None, str]:
-    """(initial_prompt, 種別) を返す。優先順位は 辞書プロンプト（明示指定時のみ）> 中立プロンプト（既定）> なし。
+def resolve_asr_prompt(dictionary_prompt: str | None, use_neutral: bool = False) -> tuple[str | None, str]:
+    """(initial_prompt, 種別) を返す。種別は dictionary / neutral / none。
 
-    辞書プロンプトを指定した場合は、それだけを渡す（中立プロンプトと連結しない）。
+    - 辞書プロンプトがある → それだけを渡す
+    - use_neutral=True → 中立プロンプトだけを渡す
+    - 両方 → ValueError（連結も優先順位による暗黙の選択もしない）
+    - どちらもなし → なし（標準）
     """
+    if dictionary_prompt and use_neutral:
+        raise ValueError("辞書プロンプトと中立プロンプトは同時に指定できません（連結しません）")
     if dictionary_prompt:
         return dictionary_prompt, "dictionary"
     if use_neutral:

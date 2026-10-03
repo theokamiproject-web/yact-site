@@ -391,7 +391,8 @@ def test_punctuation_tidy_and_paragraph_close():
 
 # ============================================================ PHASE 1
 # ---- 1) 辞書は既定ではWhisperXの initial_prompt に渡さない
-def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=("由利本荘市", "アキタウミヨコ")):
+def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=("由利本荘市", "アキタウミヨコ"),
+                            hf_token="dummy", fake_diar=True):
     """WhisperX/ffmpeg を差し替えて main を実行し、ASRに渡された initial_prompt を捕捉する。"""
     import whisperx_runner as wx
     import diarization as dz
@@ -411,8 +412,12 @@ def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=(
 
     monkeypatch.setattr(wx, "transcribe", fake_transcribe)
     monkeypatch.setattr(wx, "align", lambda *a, **k: aligned)
-    monkeypatch.setattr(dz, "run_diarization", lambda *a, **k: diar)
-    monkeypatch.setenv("HF_TOKEN", "dummy")
+    if fake_diar:
+        monkeypatch.setattr(dz, "run_diarization", lambda *a, **k: diar)
+    if hf_token:
+        monkeypatch.setenv("HF_TOKEN", hf_token)
+    else:
+        monkeypatch.delenv("HF_TOKEN", raising=False)
     for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "EDITOR_PROVIDER"):
         monkeypatch.delenv(k, raising=False)
     out = tmp_path / "out"
@@ -421,18 +426,16 @@ def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=(
     return rc, out, seen
 
 
-def test_default_run_does_not_pass_dictionary_as_initial_prompt(tmp_path, monkeypatch):
+def test_default_run_passes_no_initial_prompt(tmp_path, monkeypatch):
     rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "由利本荘市で始めました。")])
-    # 標準では「中立プロンプト」が渡る。辞書の語は一切含まれない
-    assert rc == 0 and seen["prompt"] == wx_runner.NEUTRAL_ASR_PROMPT
-    assert "由利本荘市" not in seen["prompt"] and "アキタウミヨコ" not in seen["prompt"]
+    assert rc == 0 and seen["prompt"] is None          # 標準: initial_prompt なし（辞書があっても渡さない）
     assert (out / "03_magazine_interview.md").exists()  # APIキーなしでも完走
 
 
 def test_dictionary_still_used_for_candidates_without_prompt(tmp_path, monkeypatch):
     """辞書はASRに渡さなくても、似た表記の『候補』提示には使われる（自動置換はしない）。"""
     rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "由利本庄市で始めました。")])
-    assert seen["prompt"] == wx_runner.NEUTRAL_ASR_PROMPT  # 辞書はASRに渡さない
+    assert seen["prompt"] is None  # 辞書はASRに渡さない
     assert "辞書による修正候補" in (out / "review_required.md").read_text()
     assert "由利本庄市で始めました" in (out / "01_raw_transcript.md").read_text()  # 本文は置換されない
 
@@ -558,7 +561,7 @@ def test_cut_turn_continuation_gets_fragment_gap_tolerance():
     assert len(tb.magazine_blocks([a, d])) == 2
 
 
-# ============================================================ 中立ASRプロンプト（案A）
+# ============================================================ 初期プロンプト（R1: 標準はなし／中立・辞書は明示指定のみ）
 def _dictionary_terms():
     import dictionary as dm
     return dm.all_terms(dm.load_dictionary(Path(__file__).resolve().parent.parent / "config" / "dictionary.yaml"))
@@ -575,33 +578,47 @@ def test_neutral_prompt_contains_no_dictionary_or_content_words():
     assert "。" in p and "、" in p                                # 句読点つきの自然な文の見本
 
 
-def test_resolve_asr_prompt_priority():
+def test_resolve_asr_prompt_has_no_ambiguity():
     r = wx_runner.resolve_asr_prompt
-    assert r(None, True) == (wx_runner.NEUTRAL_ASR_PROMPT, "neutral")          # 既定
-    assert r(None, False) == (None, "none")                                    # --no-neutral-prompt
-    assert r("辞書の文", True) == ("辞書の文", "dictionary")                    # 辞書(明示)が最優先。連結しない
-    assert r("辞書の文", False) == ("辞書の文", "dictionary")
+    assert r(None, False) == (None, "none")                                    # 標準
+    assert r(None, True) == (wx_runner.NEUTRAL_ASR_PROMPT, "neutral")          # --neutral-prompt
+    assert r("辞書の文", False) == ("辞書の文", "dictionary")                   # --dictionary-prompt
+    with pytest.raises(ValueError):                                            # 両方は曖昧にせずエラー
+        r("辞書の文", True)
 
 
-def test_no_neutral_prompt_option_disables_it(tmp_path, monkeypatch):
+def test_neutral_prompt_only_with_explicit_option(tmp_path, monkeypatch):
+    rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "由利本荘市で始めました。")],
+                                            extra=["--neutral-prompt"])
+    assert rc == 0 and seen["prompt"] == wx_runner.NEUTRAL_ASR_PROMPT
+    for term in ("由利本荘市", "アキタウミヨコ"):  # 辞書があっても、辞書語は中立プロンプトに混ざらない
+        assert term not in seen["prompt"]
+
+
+def test_dictionary_and_neutral_prompt_together_is_an_error(tmp_path, monkeypatch, capsys):
+    with pytest.raises(SystemExit) as e:
+        _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "始めました。")],
+                                extra=["--dictionary-prompt", "--neutral-prompt"])
+    assert e.value.code == 2 and "not allowed with" in capsys.readouterr().err
+
+
+def test_default_run_completes_without_hf_token_or_api_keys(tmp_path, monkeypatch):
+    """HF_TOKEN なし（話者分離は本物の run_diarization が失敗）でも、APIキーなしでも、最後まで完走する。"""
     rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "始めました。")],
-                                            extra=["--no-neutral-prompt"])
+                                            hf_token=None, fake_diar=False)
     assert rc == 0 and seen["prompt"] is None
-
-
-def test_dictionary_prompt_takes_precedence_over_neutral(tmp_path, monkeypatch):
-    for name, extra in (("a", ["--dictionary-prompt"]), ("b", ["--dictionary-prompt", "--no-neutral-prompt"])):
-        d = tmp_path / name
-        d.mkdir()
-        rc, out, seen = _run_with_fake_whisperx(d, monkeypatch, [("SPEAKER_00", "始めました。")], extra=extra)
-        assert "由利本荘市" in seen["prompt"] and wx_runner.NEUTRAL_ASR_PROMPT not in seen["prompt"]
+    for f in ["01_raw_transcript.md", "02_clean_transcript.md", "03_magazine_interview.md",
+              "transcript.json", "review_required.md"]:
+        assert (out / f).exists(), f
+    assert "話者不明" in (out / "03_magazine_interview.md").read_text()
+    assert "話者分離に失敗" in (out / "review_required.md").read_text()
 
 
 def test_changing_prompt_mode_invalidates_asr_cache(tmp_path, monkeypatch):
     """プロンプト設定を変えたら、キャッシュ済みのASR結果を再利用せず再実行する。"""
     lines = [("SPEAKER_00", "始めました。")]
     rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, lines)
-    assert seen["calls"] == 1
+    assert seen["calls"] == 1 and seen["prompt"] is None
     # 同じキャッシュで設定だけ変更（_run_with_fake_whisperx は同じ tmp_path を使う）
-    rc, out, seen2 = _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=["--no-neutral-prompt"])
-    assert seen2["calls"] == 1 and seen2["prompt"] is None   # 再実行された（新しい seen に1回記録）
+    rc, out, seen2 = _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=["--neutral-prompt"])
+    assert seen2["calls"] == 1 and seen2["prompt"] == wx_runner.NEUTRAL_ASR_PROMPT   # 再実行された

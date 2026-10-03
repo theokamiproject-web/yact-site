@@ -59,11 +59,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--max-speakers", type=int)
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
-    p.add_argument("--dictionary-prompt", action="store_true",
-                   help="辞書をWhisperの初期プロンプトに渡す（既定OFF。実測で認識を悪化させた例があるため明示時のみ。"
-                        "指定すると中立プロンプトの代わりにこれだけを渡す）")
-    p.add_argument("--no-neutral-prompt", action="store_true",
-                   help="中立ASRプロンプト（句読点つきの自然な文の見本。内容・固有名詞に依存しない）を渡さない")
+    g = p.add_mutually_exclusive_group()  # 初期プロンプトは標準なし。次の2つは同時指定不可（エラー）
+    g.add_argument("--dictionary-prompt", action="store_true",
+                   help="辞書をWhisperの初期プロンプトに渡す（標準はOFF。辞書の語が出ない音声では認識が悪化した例がある）")
+    g.add_argument("--neutral-prompt", action="store_true",
+                   help="中立ASRプロンプト（句読点つきの自然な文の見本。内容・固有名詞に依存しない）を渡す（標準はOFF）。"
+                        "句点がほぼ出ない音声で試す")
     p.add_argument("--merge-gap", type=float, default=tb.DEFAULT_MERGE_GAP,
                    help="雑誌版で同一話者の発言を結合する最大の時間差（秒、既定 %(default)s）")
     p.add_argument("--fragment-gap", type=float, default=tb.DEFAULT_FRAGMENT_GAP,
@@ -101,13 +102,18 @@ def main(argv=None) -> int:
 
     terms_by_cat = dictmod.load_dictionary(a.dictionary)
     terms = dictmod.all_terms(terms_by_cat)
-    # 初期プロンプトの優先順位: 辞書（--dictionary-prompt 明示時のみ）> 中立（既定）> なし（--no-neutral-prompt）。
-    # 辞書の語は中立プロンプトには決して混ぜない。辞書は修正候補・品質チェックにも使われる。
+    # 初期プロンプトは標準では渡さない。--dictionary-prompt か --neutral-prompt を明示したときだけ、
+    # そのどちらか一方を渡す（同時指定は argparse がエラーにする。連結はしない）。
+    # 辞書は修正候補・品質チェックにも使われる。
     dict_prompt = dictmod.build_initial_prompt(terms) if a.dictionary_prompt else None
-    prompt, prompt_kind = wx.resolve_asr_prompt(dict_prompt, use_neutral=not a.no_neutral_prompt)
+    if a.dictionary_prompt and not dict_prompt:
+        log("[警告] --dictionary-prompt が指定されましたが辞書が空のため、初期プロンプトなしで実行します")
+    prompt, prompt_kind = wx.resolve_asr_prompt(dict_prompt, use_neutral=a.neutral_prompt)
     log(f"[ASR] 初期プロンプト: {prompt_kind}")
     if prompt_kind == "dictionary":
         log("[ASR] 注意: 辞書プロンプトは、辞書の語が出ない音声では認識が悪化する場合があります")
+    elif prompt_kind == "neutral":
+        log("[ASR] 注意: 中立プロンプトは、音源によって相槌の増加や話者境界の悪化が確認されています")
     cfg = wx.ASRConfig(model=a.model, language=a.language, device=a.device, compute_type=a.compute_type,
                        batch_size=a.batch_size, initial_prompt=prompt, normalize=not a.no_normalize)
     device = wx.resolve_device(a.device)
