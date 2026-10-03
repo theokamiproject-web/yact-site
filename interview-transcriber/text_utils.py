@@ -245,13 +245,38 @@ def join_fragments(prev: str, nxt: str) -> str:
     return prev + nxt
 
 
-def close_paragraph(text: str) -> str:
-    """段落末が句点で終わっていなければ付ける（末尾の読点は句点に置き換える）。"""
+# 文として「確実に終わっている」語尾。ここに無い終わり方は断定せず、句点を補わない（保守的）。
+_CONFIDENT_ENDINGS = ("です", "ます", "ました", "でした", "ません", "でしょう", "ください",
+                      "だ", "だった", "た", "ない", "たい", "よ", "ね", "ぞ")
+# 明らかに文が続く終わり方（助詞・接続表現・読点）。
+_UNFINISHED_ENDINGS = ("、", "を", "に", "へ", "と", "で", "は", "が", "も", "の", "や", "て", "って",
+                       "から", "ので", "けど", "けれど", "けれども", "のに", "ながら", "たら", "ば",
+                       "なら", "し", "という", "ような", "みたいな", "それで", "そして", "でも",
+                       "だから", "なんか", "ちょっと", "あの", "その", "こう")
+_TERMINATORS = "。？！?!…」』）)"
+
+
+def is_unfinished_fragment(text: str) -> bool:
+    """助詞・接続表現・読点で終わる＝明らかに文の途中。判定が不確かなら False（断片扱いしない）。"""
     t = text.rstrip()
-    if not t:
-        return t
-    if t[-1] in "。？！?!…」』）)":
-        return t
-    if t[-1] == "、":
-        return t[:-1] + "。"
-    return t + "。"
+    if not t or t[-1] in _TERMINATORS:
+        return False
+    return t.endswith(_UNFINISHED_ENDINGS)
+
+
+def ends_confidently(text: str) -> bool:
+    t = text.rstrip()
+    return bool(t) and t[-1] not in _TERMINATORS and t.endswith(_CONFIDENT_ENDINGS) \
+        and not t.endswith(_UNFINISHED_ENDINGS)
+
+
+def close_paragraph(text: str, cut_end: bool = False) -> str:
+    """文として確実に終わっている場合にだけ句点を付ける。
+
+    cut_end=True（話者交替などで文が終わる前に切れた発言）、語尾が助詞・接続表現、判定が不確かな
+    ものは、元の文字列を維持する（句点で『完成した発言』に見せない）。語句は一切補わない。
+    """
+    t = text.rstrip()
+    if not cut_end and ends_confidently(t):
+        return t + "。"
+    return t

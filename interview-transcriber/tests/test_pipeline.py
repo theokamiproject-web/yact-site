@@ -383,4 +383,171 @@ def test_join_fragments_adds_comma_only_after_connective_endings():
 
 def test_punctuation_tidy_and_paragraph_close():
     assert editor.tidy_punct("それは，本当です。。 ね?") == "それは、本当です。ね？"
-    assert tb.close_paragraph("続きます、") == "続きます。"
+    # 仕様変更(PHASE1): 末尾の読点を句点へ置換しない。確実に終わっている文にだけ句点を付ける
+    assert tb.close_paragraph("続きます、") == "続きます、"
+    assert tb.close_paragraph("続きます") == "続きます。"
+
+
+# ============================================================ PHASE 1
+# ---- 1) 辞書は既定ではWhisperXの initial_prompt に渡さない
+def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=("由利本荘市", "アキタウミヨコ")):
+    """WhisperX/ffmpeg を差し替えて main を実行し、ASRに渡された initial_prompt を捕捉する。"""
+    import whisperx_runner as wx
+    import diarization as dz
+    seen = {}
+    aligned, diar = make_aligned(lines)
+    (tmp_path / "talk.m4a").write_bytes(b"dummy")
+    dic = tmp_path / "dictionary.yaml"
+    dic.write_text("places:\n" + "".join(f"  - {t}\n" for t in dict_terms), encoding="utf-8")
+    monkeypatch.setattr(wx, "check_ffmpeg", lambda: None)
+    monkeypatch.setattr(wx, "validate_audio", lambda p: 10.0)
+    monkeypatch.setattr(wx, "preprocess", lambda *a, **k: tmp_path / "x.wav")
+
+    def fake_transcribe(wav, cfg):
+        seen["prompt"] = cfg.initial_prompt
+        return {"segments": aligned["segments"], "language": "ja"}
+
+    monkeypatch.setattr(wx, "transcribe", fake_transcribe)
+    monkeypatch.setattr(wx, "align", lambda *a, **k: aligned)
+    monkeypatch.setattr(dz, "run_diarization", lambda *a, **k: diar)
+    monkeypatch.setenv("HF_TOKEN", "dummy")
+    for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "EDITOR_PROVIDER"):
+        monkeypatch.delenv(k, raising=False)
+    out = tmp_path / "out"
+    rc = cli.main([str(tmp_path / "talk.m4a"), "--cache-dir", str(tmp_path / "cache"), "--output-dir", str(out),
+                   "--speakers", str(tmp_path / "none.yaml"), "--dictionary", str(dic), *extra])
+    return rc, out, seen
+
+
+def test_default_run_does_not_pass_dictionary_as_initial_prompt(tmp_path, monkeypatch):
+    rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "由利本荘市で始めました。")])
+    assert rc == 0 and seen["prompt"] is None  # 辞書があっても渡さない
+    assert (out / "03_magazine_interview.md").exists()  # APIキーなしでも完走
+
+
+def test_dictionary_still_used_for_candidates_without_prompt(tmp_path, monkeypatch):
+    """辞書はASRに渡さなくても、似た表記の『候補』提示には使われる（自動置換はしない）。"""
+    rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "由利本庄市で始めました。")])
+    assert seen["prompt"] is None
+    assert "辞書による修正候補" in (out / "review_required.md").read_text()
+    assert "由利本庄市で始めました" in (out / "01_raw_transcript.md").read_text()  # 本文は置換されない
+
+
+def test_dictionary_prompt_only_with_explicit_option(tmp_path, monkeypatch):
+    rc, out, seen = _run_with_fake_whisperx(tmp_path, monkeypatch, [("SPEAKER_00", "始めました。")],
+                                            extra=["--dictionary-prompt"])
+    assert rc == 0 and seen["prompt"] and "由利本荘市" in seen["prompt"]
+
+
+# ---- 2) 離れた同一話者発言は結合しない
+def mt(i, spk, text, start, end, pause=0.0):
+    return {"id": i, "speaker_id": spk, "speaker_name": spk, "start": start, "end": end,
+            "pause_after": pause, "edited_text": text}
+
+
+def test_magazine_merges_same_speaker_with_short_gap():
+    # A: 同一話者で0.5秒間隔 → 結合候補
+    turns = [mt(0, "S0", "最初は、", 10.0, 11.0), mt(1, "S0", "そんな大きなことをやろうとは思ってなかったんです。", 11.5, 15.0)]
+    blocks = tb.magazine_blocks(turns)
+    assert len(blocks) == 1 and blocks[0]["paras"][0]["ids"] == [0, 1]
+
+
+def test_magazine_never_merges_same_speaker_with_21s_gap():
+    # B: 同一話者でも21秒間隔 → 絶対に結合しない（実音声 01:00→01:24 の再現）
+    turns = [mt(0, "S0", "外して付けるようには作られてないってこと？", 60.8, 63.1, 0.02),
+             mt(1, "S0", "でっかい姿見買ったら死ぬかと思ったの。", 84.5, 90.0)]
+    blocks = tb.magazine_blocks(turns)
+    assert len(blocks) == 2 and [b["paras"][0]["ids"] for b in blocks] == [[0], [1]]
+    assert "外して付けるようには作られてないってこと？でっかい" not in tb.render_magazine(
+        [{**t, "text": t["edited_text"]} for t in turns], "x")
+
+
+def test_gap_threshold_is_configurable_and_fragment_gets_more_tolerance():
+    done = [mt(0, "S0", "終わりました。", 0.0, 1.0), mt(1, "S0", "次です。", 3.5, 4.0)]      # 完結文＋2.5秒
+    frag = [mt(0, "S0", "それで、そのときに", 0.0, 1.0), mt(1, "S0", "思ったんです。", 3.5, 4.0)]  # 断片＋2.5秒
+    assert len(tb.magazine_blocks(done)) == 2            # 既定2.0秒 < 2.5秒 → 分ける
+    assert len(tb.magazine_blocks(frag)) == 1            # 明らかな断片の続きは3.0秒まで許容
+    assert len(tb.magazine_blocks(done, merge_gap=3.0)) == 1   # 設定で変更可能
+    assert len(tb.magazine_blocks(frag, fragment_gap=1.0)) == 2
+
+
+def test_unknown_speaker_turn_between_is_a_barrier():
+    turns = [mt(0, "S0", "前半です。", 0.0, 1.0), {**mt(1, None, "", 1.2, 1.5), "speaker_name": "話者不明"},
+             mt(2, "S0", "後半です。", 1.6, 2.5)]
+    assert len(tb.magazine_blocks(turns)) == 2           # 削除された話者不明の発言は壁
+    turns[1] = {**mt(1, "S1", "", 1.2, 1.5)}              # 確定済み話者の削除相槌は壁にしない
+    assert len(tb.magazine_blocks(turns)) == 1
+
+
+def test_turn_building_does_not_merge_sentences_21s_apart():
+    lines = [("SPEAKER_00", "外して付けるようには作られてないってこと？"),
+             ("SPEAKER_00", "でっかい姿見買ったら死ぬかと思ったの。", 21.0)]
+    aligned, diar = make_aligned(lines)
+    turns = tb.build_turns(aligned, diar)
+    assert len(turns) == 2 and turns[1]["start"] - turns[0]["end"] > 20
+    near = make_aligned([("SPEAKER_00", "一つ目です。"), ("SPEAKER_00", "二つ目です。", 0.5)])
+    assert len(tb.build_turns(near[0], near[1])) == 1       # 短い間隔は従来どおり結合
+
+
+# ---- 3) 不完全な断片に句点を付けない
+@pytest.mark.parametrize("frag", [
+    "それで、そのときに", "本当にもう成功書い", "木に直接水", "ご視聴ありがとうござ",
+    "来年やりたいけど", "忙しかったので", "それはそうなんだけれども", "あの、その", "やろうとは、",
+])
+def test_incomplete_fragments_get_no_period(frag):
+    assert tb.close_paragraph(frag.rstrip("、")) == frag.rstrip("、")
+
+
+@pytest.mark.parametrize("sent", [
+    "最初は、そんな大きなことをやろうとは思ってなかったんですよね", "そうなんですよ", "始めたのは去年です",
+    "参加者は30人くらいでした", "ご確認ください", "それは難しいと思います",
+])
+def test_complete_sentences_still_get_period(sent):
+    assert tb.close_paragraph(sent) == sent + "。"
+
+
+def test_existing_terminators_are_left_alone_and_punct_tidy_intact():
+    assert tb.close_paragraph("そうでした。") == "そうでした。" and tb.close_paragraph("本当？") == "本当？"
+    assert editor.tidy_punct("それは，本当です。。 ね?") == "それは、本当です。ね？"
+
+
+def test_magazine_does_not_complete_a_cut_off_fragment():
+    """00:27 話者A『…成功書い』→ 話者B『てないですから。』（単語の途中で話者が切れた例）"""
+    lines = [("SPEAKER_00", "ちょっとバラさないと出ないですけど、本当にもう成功書い"), ("SPEAKER_01", "てないですから。")]
+    aligned, diar = make_aligned(lines)
+    turns = tb.build_turns(aligned, diar)
+    tb.apply_speaker_names(turns, {})
+    tb.apply_clean(turns)
+    for t in turns:
+        t["edited_text"] = editor.tidy_punct(t["clean_text"])
+    mag = tb.render_magazine(turns, "x")
+    assert "成功書い\n" in mag and "成功書い。" not in mag
+    assert "てないですから。" in mag
+
+
+# ---- 3b) 話者交替で文が途中で切れた発言（構造的事実）には、語尾がそれらしくても句点を付けない
+def test_turns_are_flagged_when_cut_mid_sentence_by_speaker_change():
+    aligned, diar = make_aligned([("SPEAKER_00", "それはたぶんどっちかだ"), ("SPEAKER_01", "と思いますよ、本当に。")])
+    turns = tb.build_turns(aligned, diar)
+    assert [t["cut_end"] for t in turns] == [True, False] and [t["cut_start"] for t in turns] == [False, True]
+    # 文末（。）で終わってから話者が替わる場合は切れていない
+    aligned, diar = make_aligned([("SPEAKER_00", "どっちかです。"), ("SPEAKER_01", "そうですか。")])
+    assert not any(t["cut_end"] or t["cut_start"] for t in tb.build_turns(aligned, diar))
+
+
+def test_cut_turn_with_confident_looking_ending_gets_no_period():
+    # 実音声(Track-78)で起きた「…どっちかだ。」「…ーあります。」の再現
+    cut = {**mt(0, "S0", "どっちかだ", 0.0, 1.0), "cut_end": True}
+    whole = {**mt(0, "S0", "どっちかだ", 0.0, 1.0), "cut_end": False}
+    assert tb.magazine_blocks([cut])[0]["paras"][0]["text"] == "どっちかだ"
+    assert tb.magazine_blocks([whole])[0]["paras"][0]["text"] == "どっちかだ。"
+    assert tb.close_paragraph("あります", cut_end=True) == "あります"
+
+
+def test_cut_turn_continuation_gets_fragment_gap_tolerance():
+    a = {**mt(0, "S0", "それはどっちかだ", 0.0, 1.0), "cut_end": True}
+    b = mt(1, "S0", "と思います。", 3.0, 4.0)       # 2.0秒後 → 通常上限(2.0)と同値、断片なので3.0まで許容
+    c = mt(2, "S0", "と思います。", 3.5, 4.0)       # 2.5秒後
+    assert len(tb.magazine_blocks([a, b])) == 1 and len(tb.magazine_blocks([a, c])) == 1
+    d = mt(3, "S0", "と思います。", 9.0, 10.0)      # 8秒後 → 分ける
+    assert len(tb.magazine_blocks([a, d])) == 2

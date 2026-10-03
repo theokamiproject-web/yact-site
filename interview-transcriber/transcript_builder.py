@@ -13,10 +13,32 @@ from pathlib import Path
 from diarization import UNKNOWN_SPEAKER, overlap_by_speaker, speaker_labels
 from text_utils import (
     UNCLEAR_RE, close_paragraph, ends_with_question, fmt_ts, is_backchannel, join_fragments,
-    rule_clean, tidy_punct,
+    is_unfinished_fragment, rule_clean, tidy_punct,
 )
 
 SENT_END = "。？！?!"
+
+# 同一話者の発言を同じブロックにまとめる最大の時間差（秒）。暫定値: 実音声(Track-78)で
+# 通常の継続・応答は中央値0.16秒・最大0.7秒、発言の切れ目は2.4秒以上と二極化していたため。
+DEFAULT_MERGE_GAP = 2.0
+# 直前が助詞・接続表現などで終わる「明らかな断片」の続きに限り許す、やや長い時間差（秒）。
+DEFAULT_FRAGMENT_GAP = 3.0
+
+
+def effective_gap(prev_end: float, next_start: float, prev_pause: float) -> float:
+    """2つの発言の間の実質的な無音（秒）。
+
+    WhisperX は文間の無音を句読点トークンの長さに含めるため、前の発言の end には無音が入り得る。
+    そのぶん（prev_pause）も加える。時刻の逆転は0として扱う。
+    """
+    return max(0.0, next_start - prev_end) + (prev_pause or 0.0)
+
+
+def turn_gap(prev: dict, nxt: dict) -> float:
+    return effective_gap(prev["end"], nxt["start"], prev.get("pause_after"))
+
+
+
 NO_SPACE_LANGS = {"ja", "zh"}
 
 
@@ -104,7 +126,7 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
         for tk in tokens:
             tk["speaker"] = None
     if merge_gap is None:
-        merge_gap = 2.5 if diarized else 0.6
+        merge_gap = DEFAULT_MERGE_GAP if diarized else 0.6
 
     # 1) 文末で文に分割 → 文内の話者交替を整理して単位にする
     sentences: list[list[dict]] = []
@@ -117,8 +139,12 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
     if cur:
         sentences.append(cur)
     units: list[list[dict]] = []
+    cuts: list[tuple[bool, bool]] = []  # (cut_start, cut_end): 話者交替で文の途中から始まる / 文の終わり前に切れる
     for sent in sentences:
-        units.extend(_split_sentence_by_speaker(sent, min_run_sec) if diarized else [sent])
+        runs = _split_sentence_by_speaker(sent, min_run_sec) if diarized else [sent]
+        for i, r in enumerate(runs):
+            units.append(r)
+            cuts.append((i > 0, i < len(runs) - 1))
 
     # 2) unit → turn（話者決定と信頼度）
     def make(unit: list[dict]) -> dict:
@@ -150,18 +176,25 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
                 "words": [[t["t"], round(t["start"], 3), round(t["end"], 3), t["score"]] for t in unit],
                 "avg_logprob": (sum(lp) / len(lp)) if lp else None}
 
-    raw_units = [make(u) for u in units if "".join(t["t"] for t in u).strip()]
+    raw_units = []
+    for u, (cs, ce) in zip(units, cuts):
+        if "".join(t["t"] for t in u).strip():
+            m = make(u)
+            m["cut_start"], m["cut_end"] = cs, ce
+            raw_units.append(m)
 
     # 3) 同一話者・短い間隔・長すぎない範囲で結合（別話者が挟まれば結合しない）
     turns: list[dict] = []
     for u in raw_units:
         p = turns[-1] if turns else None
         if (p and p["speaker_id"] == u["speaker_id"] and not u["speaker_uncertain"]
-                and not p["speaker_uncertain"] and p["_pause"] <= merge_gap
+                and not p["speaker_uncertain"]
+                and effective_gap(p["end"], u["start"], p["_pause"]) <= merge_gap
                 and len(p["raw_text"]) + len(u["raw_text"]) <= max_chars):
             p["raw_text"] += u["raw_text"]
             p["end"] = u["end"]
             p["_pause"] = u["_pause"]
+            p["cut_end"] = u["cut_end"]
             p["segment_ids"] = sorted(set(p["segment_ids"]) | set(u["segment_ids"]))
             p["words"] += u["words"]
             lps = [x for x in (p["avg_logprob"], u["avg_logprob"]) if x is not None]
@@ -233,45 +266,63 @@ def render_clean(turns: list[dict], title: str, timestamps: bool = False) -> str
 
 
 def magazine_blocks(turns: list[dict], text_key: str = "edited_text", para_min: int = 120,
-                    para_max: int = 240, para_pause: float = 1.0) -> list[dict]:
+                    para_max: int = 240, para_pause: float = 1.0,
+                    merge_gap: float = DEFAULT_MERGE_GAP, fragment_gap: float = DEFAULT_FRAGMENT_GAP) -> list[dict]:
     """同一話者の連続発言を1ブロックに結合し、長ければ段落に分ける。
 
-    - 別話者が間に入る／話者不明のturnは結合しない
-    - 段落分けは、文末で区切れ、かつ（長い間があり一定量に達した or 上限超え）のとき
-    - turn の ids / start を段落ごとに保持し、元のタイムコードへ遡れる
+    結合する条件（すべて満たすときだけ）:
+      - 同じ話者（話者不明は結合しない）
+      - 発言間の時間差が merge_gap 以下（直前が明らかな断片なら fragment_gap 以下）
+      - 間に「別話者の採用発言」も「話者不明の発言」も挟まらない
+        （単独の相槌・フィラーとして削除された *話者が確定済みの* 発言は壁にしない）
+    条件を満たさなければ、同じ話者でも新しいブロック（話者名を再掲）にする。
+    turn の ids / start を段落ごとに保持し、元のタイムコードへ遡れる。
     """
     blocks: list[dict] = []
     prev_turn = None
+    barrier = False
     for t in turns:
         text = (t.get(text_key) or "").strip()
         if not text:
+            if t["speaker_id"] is None:  # 削除された話者不明の発言は、別人の発言だった可能性があるので壁にする
+                barrier = True
             continue
         b = blocks[-1] if blocks else None
-        same = (b is not None and t["speaker_id"] is not None and b["speaker_id"] == t["speaker_id"])
+        same = (b is not None and t["speaker_id"] is not None and b["speaker_id"] == t["speaker_id"]
+                and not barrier)
+        if same:
+            last = b["paras"][-1]
+            limit = fragment_gap if (last["cut_end"] or is_unfinished_fragment(last["text"])) else merge_gap
+            same = turn_gap(prev_turn, t) <= limit
         if same:
             para = b["paras"][-1]
             ends_sentence = para["text"][-1:] in "。？！?!」"
             long_pause = (prev_turn.get("pause_after") or 0.0) >= para_pause
             if ends_sentence and ((len(para["text"]) >= para_min and long_pause) or len(para["text"]) >= para_max):
-                b["paras"].append({"text": text, "start": t["start"], "ids": [t["id"]]})
+                b["paras"].append({"text": text, "start": t["start"], "ids": [t["id"]],
+                                   "cut_end": bool(t.get("cut_end"))})
             else:
                 para["text"] = join_fragments(para["text"], text)
                 para["ids"].append(t["id"])
+                para["cut_end"] = bool(t.get("cut_end"))
         else:
             blocks.append({"speaker_id": t["speaker_id"], "speaker_name": t["speaker_name"],
-                           "paras": [{"text": text, "start": t["start"], "ids": [t["id"]]}]})
+                           "paras": [{"text": text, "start": t["start"], "ids": [t["id"]],
+                                      "cut_end": bool(t.get("cut_end"))}]})
         prev_turn = t
+        barrier = False
     for b in blocks:
         for p in b["paras"]:
-            p["text"] = close_paragraph(tidy_punct(p["text"]))
+            p["text"] = close_paragraph(tidy_punct(p["text"]), p["cut_end"])
     return blocks
 
 
-def render_magazine(turns: list[dict], title: str, timestamps: bool = False, note: str | None = None) -> str:
+def render_magazine(turns: list[dict], title: str, timestamps: bool = False, note: str | None = None,
+                    merge_gap: float = DEFAULT_MERGE_GAP, fragment_gap: float = DEFAULT_FRAGMENT_GAP) -> str:
     out = [f"# 対談（{title}）", ""]
     if note:
         out += [f"> {note}", ""]
-    for b in magazine_blocks(turns):
+    for b in magazine_blocks(turns, merge_gap=merge_gap, fragment_gap=fragment_gap):
         out.append(f"{b['speaker_name']}：")
         for i, p in enumerate(b["paras"]):
             out.append(p["text"])
@@ -285,7 +336,7 @@ def render_magazine(turns: list[dict], title: str, timestamps: bool = False, not
 def write_json(path: Path, turns: list[dict], include_words: bool = True) -> None:
     keys = ["id", "speaker_id", "speaker_name", "speaker_uncertain", "speaker_guess", "start", "end",
             "raw_text", "clean_text", "edited_text", "clean_dropped", "edited_dropped",
-            "edit_source", "segment_ids", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
+            "edit_source", "cut_start", "cut_end", "segment_ids", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
     rows = []
     for t in turns:
         row = {k: t.get(k) for k in keys if k in t or k in ("edited_text",)}

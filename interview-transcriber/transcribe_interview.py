@@ -59,7 +59,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--max-speakers", type=int)
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
-    p.add_argument("--no-prompt-dictionary", action="store_true", help="辞書をWhisperの初期プロンプトに使わない")
+    p.add_argument("--dictionary-prompt", action="store_true",
+                   help="辞書をWhisperの初期プロンプトに渡す（既定OFF。実測で認識を悪化させた例があるため明示時のみ）")
+    p.add_argument("--merge-gap", type=float, default=tb.DEFAULT_MERGE_GAP,
+                   help="雑誌版で同一話者の発言を結合する最大の時間差（秒、既定 %(default)s）")
+    p.add_argument("--fragment-gap", type=float, default=tb.DEFAULT_FRAGMENT_GAP,
+                   help="直前が明らかな断片のとき許す最大の時間差（秒、既定 %(default)s）")
     p.add_argument("--editor", default=None, choices=["rule", "local", "claude", "openai"],
                    help="整文方式。標準は rule（外部LLMなし・無料）。local=Ollama等のOpenAI互換API、claude/openai=有料API（明示時のみ）")
     p.add_argument("--diarization-model", default=os.environ.get("DIARIZATION_MODEL"),
@@ -93,7 +98,10 @@ def main(argv=None) -> int:
 
     terms_by_cat = dictmod.load_dictionary(a.dictionary)
     terms = dictmod.all_terms(terms_by_cat)
-    prompt = None if a.no_prompt_dictionary else dictmod.build_initial_prompt(terms)
+    # 辞書は既定ではASRに渡さない（確認候補・品質チェックにだけ使う）。--dictionary-prompt で明示したときのみ渡す。
+    prompt = dictmod.build_initial_prompt(terms) if a.dictionary_prompt else None
+    if prompt:
+        log("[ASR] 辞書を初期プロンプトに使用します（注意: 辞書の語が出ない音声では認識が悪化する場合があります）")
     cfg = wx.ASRConfig(model=a.model, language=a.language, device=a.device, compute_type=a.compute_type,
                        batch_size=a.batch_size, initial_prompt=prompt, normalize=not a.no_normalize)
     device = wx.resolve_device(a.device)
@@ -254,7 +262,8 @@ def main(argv=None) -> int:
         note += "話者分離が行われていないため、話者は「話者不明」です。"
     note += "掲載前に review_required.md と音声で確認してください。"
     (out_dir / "03_magazine_interview.md").write_text(
-        tb.render_magazine(turns, title, a.timestamps, note=note), encoding="utf-8")
+        tb.render_magazine(turns, title, a.timestamps, note=note,
+                           merge_gap=a.merge_gap, fragment_gap=a.fragment_gap), encoding="utf-8")
     tb.write_json(out_dir / "transcript.json", turns)
     log("[出力] 03_magazine_interview.md / transcript.json 更新")
     return finish()

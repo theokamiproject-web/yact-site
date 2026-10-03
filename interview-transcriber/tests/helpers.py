@@ -5,9 +5,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 def make_aligned(lines, char_dur=0.1):
-    """lines: [(speaker, text)] → (aligned_result, diarization_segments)。発言間に1秒の間。"""
+    """lines: [(speaker, text)] または [(speaker, text, 直前の無音秒)] → (aligned_result, diarization_segments)。"""
     words, diar, t = [], [], 0.0
-    for spk, text in lines:
+    for line in lines:
+        spk, text = line[0], line[1]
+        t += line[2] if len(line) > 2 else 0.0  # 発言前の無音（この間は単語なし）
         s = t
         for ch in text:
             dur = 0.9 if ch == "。" else char_dur  # 文末の句読点に「間」が含まれるWhisperX挙動を模す
