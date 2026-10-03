@@ -13,7 +13,7 @@ from pathlib import Path
 from diarization import UNKNOWN_SPEAKER, overlap_by_speaker, speaker_labels
 from text_utils import (
     UNCLEAR_RE, close_paragraph, ends_with_question, fmt_ts, is_backchannel, join_fragments,
-    is_unfinished_fragment, rule_clean, tidy_punct,
+    apply_reject_ops, is_unfinished_fragment, rule_clean, tidy_punct,
 )
 
 SENT_END = "。？！?!"
@@ -62,6 +62,8 @@ def _tokens_from_aligned(aligned: dict, wr_segments: list[dict] | None) -> list[
             for i, ch in enumerate(text):
                 tokens.append({"t": ch, "start": seg["start"] + i * dur, "end": seg["start"] + (i + 1) * dur,
                                "score": None, "seg": si, "logprob": logprob, "approx": True})
+    for i, tk in enumerate(tokens):  # そのトークンがWhisperセグメント(チャンク)の最後か
+        tk["last_in_seg"] = (i + 1 == len(tokens)) or tokens[i + 1]["seg"] != tk["seg"]
     # 時刻欠落（数字等）を前後から補間
     last_end = 0.0
     for i, tk in enumerate(tokens):
@@ -169,7 +171,13 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
                 pause += tk["end"] - tk["start"]
             else:
                 break
-        return {"_pause": pause, "speaker_id": info["speaker_id"], "speaker_uncertain": info["speaker_uncertain"],
+        speech_end = end  # 末尾の句読点の引き延ばしを除いた、実際の発話終了時刻
+        for tk in reversed(unit):
+            if tk["t"].strip() and tk["t"].strip()[-1] not in "。、？！?!,.…":
+                speech_end = tk["end"]
+                break
+        return {"_pause": pause, "chunk_end": bool(unit[-1].get("last_in_seg")), "speech_end": round(speech_end, 3),
+                "speaker_id": info["speaker_id"], "speaker_uncertain": info["speaker_uncertain"],
                 "speaker_guess": info["speaker_guess"], "start": round(start, 3), "end": round(end, 3),
                 "raw_text": text,
                 "segment_ids": sorted({t["seg"] for t in unit}),
@@ -195,6 +203,8 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
             p["end"] = u["end"]
             p["_pause"] = u["_pause"]
             p["cut_end"] = u["cut_end"]
+            p["chunk_end"] = u["chunk_end"]
+            p["speech_end"] = u["speech_end"]
             p["segment_ids"] = sorted(set(p["segment_ids"]) | set(u["segment_ids"]))
             p["words"] += u["words"]
             lps = [x for x in (p["avg_logprob"], u["avg_logprob"]) if x is not None]
@@ -226,8 +236,11 @@ def apply_speaker_names(turns: list[dict], mapping: dict[str, str]) -> dict[str,
 def apply_clean(turns: list[dict]) -> None:
     """ルールベースの軽い整文。聞き手の単純な相槌は clean_dropped にする。"""
     for i, t in enumerate(turns):
-        t["clean_text"] = rule_clean(t["raw_text"])
+        base = apply_reject_ops(t["raw_text"], t.get("reject_ops"))  # HIGH幻覚の不採用箇所だけを除く（rawは不変）
+        t["raw_after_reject"] = base if t.get("reject_ops") else None
+        t["clean_text"] = rule_clean(base)
         t["clean_dropped"] = False
+        t["drop_reason"] = None
     for i, t in enumerate(turns):
         text = t["clean_text"]
         prev = turns[i - 1] if i else None
@@ -235,8 +248,12 @@ def apply_clean(turns: list[dict]) -> None:
                                 and ends_with_question(prev["clean_text"] or prev["raw_text"]))
         if not text.strip(" 。、"):
             t["clean_dropped"], t["clean_text"] = True, ""
+            if t.get("reject_ops"):
+                t["drop_reason"] = "hallucination"
         elif t["speaker_id"] is not None and is_backchannel(text) and "？" not in text and "?" not in text and not answers_question \
-                and not UNCLEAR_RE.search(text):
+                and not UNCLEAR_RE.search(text) \
+                and not any(h.get("kind") == "tail_short" for h in t.get("hallucination") or []):
+            # ↑ 音声末尾・長い無音直前で「要確認」に挙がった短い発言は、幻覚かもしれないが実発話かもしれないので、相槌でも消さない
             t["clean_dropped"], t["clean_text"] = True, ""
 
 
@@ -336,7 +353,7 @@ def render_magazine(turns: list[dict], title: str, timestamps: bool = False, not
 def write_json(path: Path, turns: list[dict], include_words: bool = True) -> None:
     keys = ["id", "speaker_id", "speaker_name", "speaker_uncertain", "speaker_guess", "start", "end",
             "raw_text", "clean_text", "edited_text", "clean_dropped", "edited_dropped",
-            "edit_source", "cut_start", "cut_end", "segment_ids", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
+            "edit_source", "cut_start", "cut_end", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
     rows = []
     for t in turns:
         row = {k: t.get(k) for k in keys if k in t or k in ("edited_text",)}

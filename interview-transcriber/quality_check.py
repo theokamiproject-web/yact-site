@@ -10,7 +10,7 @@ from typing import Iterable
 
 from text_utils import (
     UNCLEAR_RE, fmt_ts, is_backchannel, nfkc, number_diff, proper_noun_candidates, squash,
-    strip_fillers_aggressive, unit_category,
+    strip_fillers_aggressive, unit_category, effective_raw,
 )
 
 HIGH, MEDIUM, LOW = "high", "medium", "low"
@@ -44,7 +44,7 @@ def _ngrams(text: str, n: int = 6) -> set[str]:
 def check_turn(turn: dict, edited: str, speaker_names: Iterable[str] = (),
                dictionary_terms: list[str] | None = None, neighbors: list[dict] | None = None) -> list[Issue]:
     """1発言ぶんの rawtext → edited を検査する。"""
-    raw = turn["raw_text"]
+    raw = effective_raw(turn)
     base = dict(turn_id=turn["id"], start=turn.get("start"), speaker=turn.get("speaker_name", ""),
                 raw=raw, edited=edited)
     issues: list[Issue] = []
@@ -143,15 +143,11 @@ def check_all(turns: list[dict], speaker_names: Iterable[str] = (),
 
 
 def check_raw(turns: list[dict]) -> list[Issue]:
-    """編集前の逐語録に対する確認事項（認識の幻覚・低信頼・話者不確実）。"""
+    """編集前の逐語録に対する確認事項（低信頼・話者不確実）。幻覚・未転写は hallucination.py が扱う。"""
     issues: list[Issue] = []
     for t in turns:
         base = dict(turn_id=t["id"], start=t["start"], speaker=t.get("speaker_name", ""),
                     raw=t["raw_text"], edited="")
-        for h in HALLUCINATIONS:
-            if h in t["raw_text"]:
-                issues.append(Issue(severity=LOW, kind="音声認識の幻覚疑い",
-                                    reason=f"無音区間で出やすい定型句「{h}」を含みます。実際の発言か音声で確認してください。", **base))
         if t.get("low_confidence"):
             issues.append(Issue(severity=LOW, kind="認識信頼度が低い",
                                 reason=f"音声認識の平均対数確率が低い区間です（avg_logprob={t['avg_logprob']:.2f}）。聞き取り違いの可能性があります。", **base))
@@ -163,14 +159,89 @@ def check_raw(turns: list[dict]) -> list[Issue]:
     return issues
 
 
+def _span_text(turns, ids) -> tuple[str, str]:
+    ts = [turns[i] for i in ids]
+    a, b = ts[0]["start"], max(t.get("speech_end", t["end"]) for t in ts)
+    names = []
+    for t in ts:
+        n = t.get("speaker_name", "")
+        if not names or names[-1] != n:
+            names.append(n)
+    return f"{fmt_ts(a)}〜{fmt_ts(b)}", " → ".join(names)
+
+
+def _render_findings(findings, turns, keep: bool) -> list[str]:
+    rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    hs = sorted([f for f in findings if f.kind != "boundary"],
+                key=lambda f: (rank[f.confidence], turns[f.turn_ids[0]]["start"]))
+    cnt = {c: sum(1 for f in hs if f.confidence == c) for c in rank}
+    rejected = sum(1 for f in hs if f.action == "reject" and not keep)
+    L = ["## 幻覚の検出", "",
+         f"HIGH {cnt['HIGH']}（うち自動不採用 {rejected}）／ MEDIUM {cnt['MEDIUM']} ／ LOW {cnt['LOW']}",
+         "- **HIGH** は確実性が高いものだけ。02_clean／03_magazine から除外します（**01_raw と transcript.json の raw_text は原文のまま**）。",
+         "- **MEDIUM／LOW** は要確認のみで、**削除していません**（正しい短い発話の可能性があるため）。", ""]
+    if not hs:
+        L += ["検出なし。", ""]
+    for f in hs:
+        tc, who = _span_text(turns, f.turn_ids)
+        if f.action == "reject":
+            handling = "要確認（--keep-hallucinations のため除外していません）" if keep else "**自動不採用**（02_clean／03_magazine から除外。01_rawには残っています）"
+            if f.kind == "loop":
+                handling = handling.replace("除外", "反復を1回分に畳む") if not keep else handling
+        else:
+            handling = "要確認（削除していません）"
+        label = {"phrase": "既知の幻覚定型句", "loop": "反復ループ", "tail_short": "音声末尾／長い無音直前の短い発言"}[f.kind]
+        L += [f"### [{f.confidence}] {label}　{tc}", "",
+              f"- 話者: {who}", f"- 対象テキスト: {f.text}", f"- 処理: {handling}", f"- 理由: {f.reason}"]
+        d = f.detail
+        if f.kind == "tail_short":
+            sil = "不明" if d.get("silence_after") is None else f"{d['silence_after']}秒"
+            L += [f"- 長さ: {d['duration']}秒　／ 直後の無音: {sil}　／ チャンク末尾: {'はい' if d['chunk_end'] else 'いいえ'}　"
+                  f"／ 音声末尾: {'はい' if d['audio_end'] else 'いいえ'}"]
+        elif f.kind == "loop":
+            L += [f"- 反復: 「{d['unit']}」×{d['repeats']}（{d['chars']}字）"]
+        L.append("")
+    bs = [f for f in findings if f.kind == "boundary"]
+    L += ["## speaker境界要確認", "",
+          "文（語）の途中で話者が切り替わった可能性がある箇所です。**話者の付け替え・文字列のつなぎ直しはしていません。**", ""]
+    if not bs:
+        L += ["検出なし。", ""]
+    for f in bs:
+        tc, who = _span_text(turns, f.turn_ids)
+        L += [f"- {tc}　{who}　{f.text}" + ("　（短い断片）" if f.detail.get("short_fragment") else "")]
+    if bs:
+        L.append("")
+    return L
+
+
+def _render_untranscribed(rows, summary, turns) -> list[str]:
+    names = {t["speaker_id"]: t.get("speaker_name", "") for t in turns if t.get("speaker_id")}
+    L = ["## ASR未転写候補", "",
+         "話者分離は**発話あり**と判定したのに、文字起こしが無い区間です（幻覚ではなく**脱落**の可視化。削除ではなく警告）。", "",
+         f"発話あり約{summary['speech_sec']}秒のうち未転写 約{summary['untranscribed_sec']}秒（{summary['ratio'] * 100:.1f}%）。"
+         f"表示条件: 連続{summary['min_sec']}秒以上（--min-untranscribed-sec で変更）。表示 {summary['regions']}件", ""]
+    if not rows:
+        L += ["該当なし。", ""]
+    for r in rows:
+        sp = r["speaker"] + (f"（{names[r['speaker']]}）" if names.get(r["speaker"]) else "")
+        L += [f"### {fmt_ts(r['start'])}〜{fmt_ts(r['end'])}", "", f"- speaker: {sp}", f"- 発話区間: {r['duration']}秒",
+              "- ASRテキスト: なし" + ("（幻覚として不採用にした文字があった区間）" if r.get("rejected_text") else ""), ""]
+    return L
+
+
 def write_review(path, issues: list[Issue], extra_notes: list[str] | None = None,
-                 dictionary_candidates: list[dict] | None = None):
+                 dictionary_candidates: list[dict] | None = None, findings=None, turns=None,
+                 untranscribed=None, keep_hallucinations: bool = False):
     order = {HIGH: 0, MEDIUM: 1, LOW: 2}
     issues = sorted(issues, key=lambda i: (order[i.severity], i.start if i.start is not None else -1))
     lines = ["# 要確認", ""]
     if extra_notes:
         lines += ["## 処理に関する注意", ""] + [f"- {n}" for n in extra_notes] + [""]
-    if not issues and not dictionary_candidates:
+    if findings is not None and turns is not None:
+        lines += _render_findings(findings, turns, keep_hallucinations)
+    if untranscribed is not None and turns is not None:
+        lines += _render_untranscribed(untranscribed[0], untranscribed[1], turns)
+    if not issues and not dictionary_candidates and not findings and not (untranscribed and untranscribed[0]):
         lines += ["自動チェックで検出された問題はありません。（ただし機械的な検査であり、正確性の保証ではありません。）", ""]
     label = {HIGH: "重要", MEDIUM: "要確認", LOW: "参考"}
     for i in issues:

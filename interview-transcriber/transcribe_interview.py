@@ -20,6 +20,7 @@ sys.path.insert(0, str(BASE))
 import dictionary as dictmod  # noqa: E402
 import diarization  # noqa: E402
 import editor as editormod  # noqa: E402
+import hallucination as hal  # noqa: E402
 import quality_check as qc  # noqa: E402
 import transcript_builder as tb  # noqa: E402
 import whisperx_runner as wx  # noqa: E402
@@ -75,6 +76,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help=f"既定: {diarization.DEFAULT_DIARIZATION_MODEL}")
     p.add_argument("--editor-model")
     p.add_argument("--chunk-chars", type=int, default=2500, help="LLMに渡す1chunkの目安文字数")
+    p.add_argument("--keep-hallucinations", action="store_true",
+                   help="HIGH（確実性の高い）幻覚も自動不採用にせず、要確認として残す")
+    p.add_argument("--min-untranscribed-sec", type=float, default=1.5,
+                   help="ASR未転写候補として表示する最小の連続秒数（既定 %(default)s。話者分離ありのとき）")
     p.add_argument("--mark-unclear-logprob", type=float, default=None,
                    help="[実験的] 認識の平均対数確率がこの値未満の発言を[聞き取り不明]に置換（例: -1.0）")
     return p.parse_args(argv)
@@ -211,12 +216,25 @@ def main(argv=None) -> int:
     tb.write_json(out_dir / "transcript.json", turns)
     log(f"[出力] 01_raw_transcript.md / transcript.json（{len(turns)}発言）")
 
+    # ---------------- PHASE2: 幻覚・脱落の検出（HIGHだけ自動不採用。rawは不変。MEDIUM/LOWは要確認のみ）
+    findings = hal.detect(turns, duration)
+    hal.apply_rejections(turns, findings, reject=not a.keep_hallucinations)
+    untr = None
+    if diar_segments:
+        untr = hal.untranscribed_regions(turns, diar_segments, a.min_untranscribed_sec, duration)
+    n_rej = sum(1 for f in findings if f.action == "reject" and not a.keep_hallucinations)
+    log(f"[幻覚検出] HIGH {sum(f.confidence == 'HIGH' for f in findings)}（自動不採用 {n_rej}）/ "
+        f"MEDIUM {sum(f.confidence == 'MEDIUM' for f in findings)} / LOW {sum(f.confidence == 'LOW' for f in findings)}"
+        + (f" ／ ASR未転写候補 {untr[1]['regions']}件" if untr else ""))
+    tb.write_json(out_dir / "transcript.json", turns)
+
     terms_for_check = terms
     issues = qc.check_raw(turns)
     cands = dictmod.find_candidates(turns, terms) if terms else []
 
     def finish() -> int:
-        qc.write_review(out_dir / "review_required.md", issues, notes, cands)
+        qc.write_review(out_dir / "review_required.md", issues, notes, cands, findings=findings, turns=turns,
+                        untranscribed=untr, keep_hallucinations=a.keep_hallucinations)
         high = sum(1 for i in issues if i.severity == qc.HIGH)
         log(f"[品質チェック] 重要 {high} / 要確認 {sum(1 for i in issues if i.severity == qc.MEDIUM)} / "
             f"参考 {sum(1 for i in issues if i.severity == qc.LOW)} → review_required.md")

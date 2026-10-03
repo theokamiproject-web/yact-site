@@ -280,3 +280,24 @@ def close_paragraph(text: str, cut_end: bool = False) -> str:
     if not cut_end and ends_confidently(t):
         return t + "。"
     return t
+
+
+def apply_reject_ops(text: str, ops: list | None) -> str:
+    """不採用箇所 [(start, end, replacement), ...]（元文字列の位置）を適用する。重なる操作は先のものを優先。"""
+    if not ops:
+        return text
+    out, pos = [], 0
+    for start, end, rep in sorted(ops, key=lambda o: (o[0], o[1])):
+        if start < pos:
+            continue
+        out.append(text[pos:start])
+        out.append(rep)
+        pos = end
+    out.append(text[pos:])
+    return "".join(out)
+
+
+def effective_raw(turn: dict) -> str:
+    """検査・編集の入力に使う原文。HIGH幻覚を不採用にした箇所を除いたもの（無ければ raw_text）。raw_text自体は不変。"""
+    r = turn.get("raw_after_reject")
+    return turn["raw_text"] if r is None else r

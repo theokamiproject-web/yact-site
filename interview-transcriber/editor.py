@@ -20,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from text_utils import tidy_punct
+from text_utils import effective_raw, tidy_punct
 
 PROMPT_VERSION = "v1"
 DROP_TOKEN = "<削除>"
@@ -166,7 +166,7 @@ def get_editor(provider: str | None = None, model: str | None = None) -> BaseEdi
 
 # ------------------------------------------------------------------ chunking
 def _line(t: dict) -> str:
-    return f"[{t['id']}] {t['speaker_name']}: {t['raw_text']}"
+    return f"[{t['id']}] {t['speaker_name']}: {effective_raw(t)}"
 
 
 def build_chunks(turns: list[dict], target_chars: int = 2500, max_chars: int = 3600,

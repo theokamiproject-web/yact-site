@@ -392,7 +392,7 @@ def test_punctuation_tidy_and_paragraph_close():
 # ============================================================ PHASE 1
 # ---- 1) 辞書は既定ではWhisperXの initial_prompt に渡さない
 def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=("由利本荘市", "アキタウミヨコ"),
-                            hf_token="dummy", fake_diar=True):
+                            hf_token="dummy", fake_diar=True, extra_diar=()):
     """WhisperX/ffmpeg を差し替えて main を実行し、ASRに渡された initial_prompt を捕捉する。"""
     import whisperx_runner as wx
     import diarization as dz
@@ -413,7 +413,7 @@ def _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=(), dict_terms=(
     monkeypatch.setattr(wx, "transcribe", fake_transcribe)
     monkeypatch.setattr(wx, "align", lambda *a, **k: aligned)
     if fake_diar:
-        monkeypatch.setattr(dz, "run_diarization", lambda *a, **k: diar)
+        monkeypatch.setattr(dz, "run_diarization", lambda *a, **k: diar + list(extra_diar))
     if hf_token:
         monkeypatch.setenv("HF_TOKEN", hf_token)
     else:
@@ -622,3 +622,55 @@ def test_changing_prompt_mode_invalidates_asr_cache(tmp_path, monkeypatch):
     # 同じキャッシュで設定だけ変更（_run_with_fake_whisperx は同じ tmp_path を使う）
     rc, out, seen2 = _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra=["--neutral-prompt"])
     assert seen2["calls"] == 1 and seen2["prompt"] == wx_runner.NEUTRAL_ASR_PROMPT   # 再実行された
+
+
+# ============================================================ PHASE 2（統合）: 幻覚・脱落の検出
+SPLIT_PHRASE_LINES = [("SPEAKER_00", "最初の話題について説明します。"), ("SPEAKER_01", "なるほど、そうなんですね。"),
+                      ("SPEAKER_00", "作んないと。ご視聴ありがとうござ"), ("SPEAKER_01", "いました。")]
+
+
+def test_high_hallucination_is_rejected_from_clean_and_magazine_but_kept_in_raw_and_json(tmp_path, monkeypatch):
+    rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, SPLIT_PHRASE_LINES)
+    raw, clean, mag = [(out / f).read_text() for f in ("01_raw_transcript.md", "02_clean_transcript.md", "03_magazine_interview.md")]
+    assert "ご視聴ありがとうござ" in raw and "いました。" in raw          # 逐語録は原文のまま
+    assert "ご視聴" not in clean and "ご視聴" not in mag                 # 02/03 からは HIGH だけ除く
+    assert "作んないと。" in mag                                         # 同じ発言の実在部分は残す
+    data = json.loads((out / "transcript.json").read_text())
+    assert any("ご視聴ありがとうござ" in d["raw_text"] for d in data)    # JSONのraw_textも原文
+    assert any(d["reject_ops"] for d in data) and any(d["drop_reason"] == "hallucination" for d in data)
+    review = (out / "review_required.md").read_text()
+    assert "[HIGH] 既知の幻覚定型句" in review and "自動不採用" in review and "複数の発言に分かれています" in review
+
+
+def test_keep_hallucinations_option_leaves_high_candidates_in_place(tmp_path, monkeypatch):
+    rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, SPLIT_PHRASE_LINES, extra=["--keep-hallucinations"])
+    assert "ご視聴" in (out / "03_magazine_interview.md").read_text()
+    assert "--keep-hallucinations のため除外していません" in (out / "review_required.md").read_text()
+
+
+def test_untranscribed_section_lists_diarized_speech_without_text(tmp_path, monkeypatch):
+    extra = [{"start": 30.0, "end": 36.0, "speaker": "SPEAKER_00"}]
+    lines = [("SPEAKER_00", "最初の話題について説明します。"), ("SPEAKER_01", "なるほど、そうなんですね。")]
+    rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra_diar=extra)
+    review = (out / "review_required.md").read_text()
+    assert "## ASR未転写候補" in review and "発話区間: 6.0秒" in review and "ASRテキスト: なし" in review
+    assert "SPEAKER_00" in review and "00:00:30〜00:00:36" in review
+
+
+def test_min_untranscribed_sec_is_configurable(tmp_path, monkeypatch):
+    extra = [{"start": 30.0, "end": 31.0, "speaker": "SPEAKER_00"}]   # 1.0秒の未転写
+    lines = [("SPEAKER_00", "最初の話題について説明します。"), ("SPEAKER_01", "なるほど、そうなんですね。")]
+    rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, lines, extra_diar=extra)           # 既定1.5秒 → 出ない
+    assert "00:00:30" not in (out / "review_required.md").read_text()
+    (tmp_path / "b").mkdir()
+    rc, out2, _ = _run_with_fake_whisperx(tmp_path / "b", monkeypatch, lines, extra_diar=extra, extra=["--min-untranscribed-sec", "0.5"])
+    assert "00:00:30" in (out2 / "review_required.md").read_text()
+
+
+def test_normal_dialogue_run_has_no_hallucination_findings(tmp_path, monkeypatch):
+    lines = [("SPEAKER_00", "最初はそんなに大きなことをやろうとは思ってなかったんですよね。"), ("SPEAKER_01", "そうだったんですか？"),
+             ("SPEAKER_00", "はい。地域で活動しているうちに続けられると思いました。")]
+    rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, lines)
+    review = (out / "review_required.md").read_text()
+    assert "[HIGH]" not in review and "[MEDIUM]" not in review
+    assert all(not d["reject_ops"] for d in json.loads((out / "transcript.json").read_text()))
