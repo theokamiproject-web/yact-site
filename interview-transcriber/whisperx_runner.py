@@ -33,6 +33,33 @@ class ASRConfig:
     extra: dict = field(default_factory=dict)
 
 
+# ------------------------------------------------------------------ ASR初期プロンプト
+# 中立ASRプロンプト。Whisperの initial_prompt は「直前の書き起こし」として扱われ、句読点の有無・文体を
+# 引き継ぐ。無いと日本語は句読点がほぼ出ず、文境界が崩れて話者境界が語の途中で切れる（実測）。
+# そのため「句読点つきの自然な文」の見本だけを与える。方針:
+#   - 指示文にしない（指示文は出力に漏れ出したり幻覚を誘う）
+#   - 話題・固有名詞・辞書語・特定の音声内容に依存する語を含めない
+#   - 短くする（長いと本来の発話を押しのける）
+# 選定根拠（Track-78、5候補を同一条件で比較。詳細は output/quality_report.md）:
+#   - 指示文（「句読点を含めて文字起こしします」）は不採用: 辞書プロンプトと同様に欠落が増え幻覚が再発した
+#   - 抽象的な短文（「それは、こうです。そして…」等）は、チャンク境界を1.5秒ずらすと欠落が旧辞書並みに悪化し不安定
+#   - この文面は、境界をずらしても欠落・句読点・語途中の話者境界が安定していた
+# 1本の音声での暫定値。内容・話題・固有名詞・辞書語は含まない。--no-neutral-prompt で無効化できる。
+NEUTRAL_ASR_PROMPT = "はい、そうですね。ええと、それはですね、こういうことなんです。"
+
+
+def resolve_asr_prompt(dictionary_prompt: str | None, use_neutral: bool = True) -> tuple[str | None, str]:
+    """(initial_prompt, 種別) を返す。優先順位は 辞書プロンプト（明示指定時のみ）> 中立プロンプト（既定）> なし。
+
+    辞書プロンプトを指定した場合は、それだけを渡す（中立プロンプトと連結しない）。
+    """
+    if dictionary_prompt:
+        return dictionary_prompt, "dictionary"
+    if use_neutral:
+        return NEUTRAL_ASR_PROMPT, "neutral"
+    return None, "none"
+
+
 # ------------------------------------------------------------------ 環境
 def resolve_device(device: str) -> str:
     if device != "auto":

@@ -60,7 +60,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
     p.add_argument("--dictionary-prompt", action="store_true",
-                   help="辞書をWhisperの初期プロンプトに渡す（既定OFF。実測で認識を悪化させた例があるため明示時のみ）")
+                   help="辞書をWhisperの初期プロンプトに渡す（既定OFF。実測で認識を悪化させた例があるため明示時のみ。"
+                        "指定すると中立プロンプトの代わりにこれだけを渡す）")
+    p.add_argument("--no-neutral-prompt", action="store_true",
+                   help="中立ASRプロンプト（句読点つきの自然な文の見本。内容・固有名詞に依存しない）を渡さない")
     p.add_argument("--merge-gap", type=float, default=tb.DEFAULT_MERGE_GAP,
                    help="雑誌版で同一話者の発言を結合する最大の時間差（秒、既定 %(default)s）")
     p.add_argument("--fragment-gap", type=float, default=tb.DEFAULT_FRAGMENT_GAP,
@@ -98,10 +101,13 @@ def main(argv=None) -> int:
 
     terms_by_cat = dictmod.load_dictionary(a.dictionary)
     terms = dictmod.all_terms(terms_by_cat)
-    # 辞書は既定ではASRに渡さない（確認候補・品質チェックにだけ使う）。--dictionary-prompt で明示したときのみ渡す。
-    prompt = dictmod.build_initial_prompt(terms) if a.dictionary_prompt else None
-    if prompt:
-        log("[ASR] 辞書を初期プロンプトに使用します（注意: 辞書の語が出ない音声では認識が悪化する場合があります）")
+    # 初期プロンプトの優先順位: 辞書（--dictionary-prompt 明示時のみ）> 中立（既定）> なし（--no-neutral-prompt）。
+    # 辞書の語は中立プロンプトには決して混ぜない。辞書は修正候補・品質チェックにも使われる。
+    dict_prompt = dictmod.build_initial_prompt(terms) if a.dictionary_prompt else None
+    prompt, prompt_kind = wx.resolve_asr_prompt(dict_prompt, use_neutral=not a.no_neutral_prompt)
+    log(f"[ASR] 初期プロンプト: {prompt_kind}")
+    if prompt_kind == "dictionary":
+        log("[ASR] 注意: 辞書プロンプトは、辞書の語が出ない音声では認識が悪化する場合があります")
     cfg = wx.ASRConfig(model=a.model, language=a.language, device=a.device, compute_type=a.compute_type,
                        batch_size=a.batch_size, initial_prompt=prompt, normalize=not a.no_normalize)
     device = wx.resolve_device(a.device)
