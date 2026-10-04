@@ -4,6 +4,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { LAYOUTS_DIR } from './paths.mjs';
 
+const { DENSITY } = await import(pathToFileURL(path.join(LAYOUTS_DIR, '_contracts.mjs')).href);
+
 let cache;
 
 export async function loadRegistry() {
@@ -17,7 +19,7 @@ export async function loadRegistry() {
     const mod = (await import(pathToFileURL(entry).href)).default;
     for (const [name, c] of Object.entries(mod.components)) {
       if (components[name]) throw new Error(`duplicate layout component: ${name}`);
-      components[name] = { name, family, ...c };
+      components[name] = { name, family, ...c, density: DENSITY[name] };
     }
     const css = path.join(dir, 'style.css');
     if (fs.existsSync(css)) styles.push({ family, file: css, css: fs.readFileSync(css, 'utf8') });

@@ -28,13 +28,13 @@ function walk(dir, out = []) {
 }
 
 /** Hash of everything that affects the PDF: issue sources, themes, layouts. */
-export function sourceHash(model) {
+export function sourceHash(model, { roots = [path.join(PS_ROOT, 'themes'), path.join(PS_ROOT, 'layouts')] } = {}) {
   const h = crypto.createHash('sha1');
-  const files = [...walk(model.dir), ...walk(path.join(PS_ROOT, 'themes')), ...walk(path.join(PS_ROOT, 'layouts'))]
+  const files = [...walk(model.dir), ...roots.flatMap((r) => walk(r))]
     .filter((f) => !f.includes(`${path.sep}notes${path.sep}`) && !f.includes(`${path.sep}reviews${path.sep}`))
     .sort();
   for (const f of files) {
-    h.update(path.relative(PS_ROOT, f));
+    h.update(f.startsWith(model.dir) ? path.relative(model.dir, f) : path.relative(PS_ROOT, f)); // an issue's own directory name does not matter
     h.update(fs.readFileSync(f));
   }
   return h.digest('hex');

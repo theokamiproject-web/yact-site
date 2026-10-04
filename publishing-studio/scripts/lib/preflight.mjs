@@ -11,16 +11,20 @@ import { validateModel } from './validate-model.mjs';
 import { sourceHash } from './build.mjs';
 import { loadReviews, openSevere } from './critic.mjs';
 import { issueBoundary, overrideRequested } from './boundary.mjs';
+import { loadRegistry } from './registry.mjs';
+import { densityFindings } from './density.mjs';
 
 const exec = promisify(execFile);
 const MM = 25.4 / 72;
+/** AUTOMATED CHECK = deterministic script measurement; HEURISTIC = rule of thumb that can be wrong; MANUAL CHECK = NOT verified. */
+const HEURISTIC_CODES = new Set(['P06', 'P29', 'P30']);
 const mm = (pt) => +(pt * MM).toFixed(2);
 
 export async function runPreflight(id) {
   const model = loadIssue(id);
   const out = outDir(id);
   const items = [];
-  const add = (code, check, status, detail, pages = []) => items.push({ code, check, status, detail, pages });
+  const add = (code, check, status, detail, pages = []) => items.push({ code, check, kind: status === 'MANUAL CHECK' ? 'MANUAL CHECK' : HEURISTIC_CODES.has(code) ? 'HEURISTIC' : 'AUTOMATED CHECK', status, detail, pages });
   const findings = await validateModel(model);
   const by = (...codes) => findings.filter((f) => codes.includes(f.code));
   const group = (code, check, codes, { warnAs = 'WARNING', okText }) => {
@@ -47,8 +51,8 @@ export async function runPreflight(id) {
   group('P03', 'unknown layout / variant', ['UNKNOWN_LAYOUT', 'UNKNOWN_VARIANT'], { okText: 'all layouts and variants exist in the registry' });
   group('P04', 'missing asset', ['MISSING_ASSET'], { okText: 'all referenced images exist in images/' });
   group('P05', 'missing caption', ['MISSING_CAPTION'], { warnAs: 'FAIL', okText: 'every captioned image has a caption' });
-  group('P06', 'editorial fit (target_pages / text volume)', ['TARGET_PAGES', 'TEXT_MAY_OVERFLOW', 'TEXT_PAGE_EMPTY', 'TEXT_PAGE_SPARSE'], { okText: 'article page counts match target_pages; text volume fits estimated frames' });
-  const known = new Set([...modelCodes, 'ARTICLE_NOT_PLACED', 'ARTICLE_MISSING', 'TEXT_NOT_PLACED', 'UNKNOWN_LAYOUT', 'UNKNOWN_VARIANT', 'MISSING_ASSET', 'MISSING_CAPTION', 'TARGET_PAGES', 'TEXT_MAY_OVERFLOW', 'TEXT_PAGE_EMPTY', 'TEXT_PAGE_SPARSE', 'IMAGE_UNUSED']);
+  group('P06', 'editorial fit (target_pages / text volume)', ['TARGET_PAGES', 'TEXT_MAY_OVERFLOW', 'TEXT_PAGE_EMPTY', 'TEXT_UNDERFILLED'], { okText: 'article page counts match target_pages; text volume fits estimated frames' });
+  const known = new Set([...modelCodes, 'ARTICLE_NOT_PLACED', 'ARTICLE_MISSING', 'TEXT_NOT_PLACED', 'UNKNOWN_LAYOUT', 'UNKNOWN_VARIANT', 'MISSING_ASSET', 'MISSING_CAPTION', 'TARGET_PAGES', 'TEXT_MAY_OVERFLOW', 'TEXT_PAGE_EMPTY', 'TEXT_UNDERFILLED', 'IMAGE_UNUSED', 'MD_RAW_HTML_ESCAPED', 'MD_IMAGE_REMOVED', 'MD_LINK_AS_TEXT', 'INTENT_REDUNDANT', 'LAYOUT_PROBE_SKIPPED']);
   const other = findings.filter((f) => !known.has(f.code) && f.level !== 'info');
   if (other.length) add('P07', 'other model findings', other.some((f) => f.level === 'error') ? 'FAIL' : 'WARNING', other.slice(0, 6).map((f) => f.message).join(' / '));
 
@@ -146,6 +150,15 @@ export async function runPreflight(id) {
     const minPpi = imgs.length ? Math.min(...imgs.map((i) => i.ppi)) : null;
     add('P22', 'image resolution (effective ppi at placed size)', lo.length ? 'FAIL' : mid.length ? 'WARNING' : 'PASS', imgs.length ? `min ${minPpi}ppi (DOM-derived; ≥200 ok, <100 fail)${lo.length ? `; <100: ${lo.map((i) => `p${i.n} ${i.file} ${i.ppi}`).join(', ')}` : ''}${mid.length ? `; <200: ${mid.map((i) => `p${i.n} ${i.file} ${i.ppi}`).join(', ')}` : ''}` : 'no images');
     const bs = pg.filter((m) => m.bleed_short?.length);
+    const tocBad = pg.filter((m) => m.toc_items && m.toc_items.fitting < m.toc_items.total);
+    add('P31', 'contents complete (no entry lost off the page)', tocBad.length ? 'FAIL' : 'PASS', tocBad.length ? tocBad.map((m) => `p${m.n}: ${m.toc_items.total} entries, only ${m.toc_items.fitting} fit`).join('; ') : 'every contents entry is inside the page', tocBad.map((m) => m.n));
+    const orph = pg.filter((m) => m.orphan_lines?.length);
+    add('P29', 'typographic orphan lines (last line ≤ 2 characters)', orph.length ? 'WARNING' : 'PASS', orph.length ? orph.map((m) => `p${m.n}: ${m.orphan_lines.map((o) => `…${o.text}`).join(' ')}`).join(' / ') : 'none found by the DOM measurement (a human still reads the pages)', orph.map((m) => m.n));
+    {
+      const reg = await loadRegistry();
+      const d = densityFindings(model, reg, pg);
+      add('P30', 'under-filled pages vs component density contracts', d.findings.length ? 'WARNING' : 'PASS', d.findings.length ? d.findings.map((f) => `p${f.pages[0]} ${f.message}`).join(' / ') : `no page violates its component contract${d.declared.length ? `; declared intentional_sparse: ${d.declared.map((x) => `p${x.page}`).join(', ')} (reason in flatplan notes)` : ''}`, d.findings.flatMap((f) => f.pages));
+    }
     add('P23', 'full-bleed images extend into the bleed', bs.length ? 'WARNING' : 'PASS', bs.length ? bs.map((m) => `p${m.n}: ${m.bleed_short.map((b) => `${b.file} (${b.edges.join('/')})`).join(', ')}`).join(' / ') : 'images touching the trim edge also cover the bleed (spine edges excluded)', bs.map((m) => m.n));
   }
 
@@ -158,6 +171,9 @@ export async function runPreflight(id) {
   const rgb = Object.entries(spaces).filter(([s]) => ['srgb', 'rgb', 'b-w', 'unknown'].includes(s)).flatMap(([, v]) => v);
   const cmyk = spaces.cmyk ?? [];
   add('P25', 'image colour space (RGB/CMYK)', rgb.length ? 'WARNING' : cmyk.length ? 'PASS' : 'PASS', `${rgb.length} RGB/grey source image(s), ${cmyk.length} CMYK. v0.1 does not convert colours; the printer (or a later step) must convert RGB→CMYK${rgb.length ? `: ${rgb.slice(0, 5).join(', ')}${rgb.length > 5 ? '…' : ''}` : ''}`);
+  add('P32', 'ICC profiles / output intent', 'MANUAL CHECK', 'no colour profile handling: images are untagged or sRGB and the PDF has no output intent. Not verified.');
+  add('P33', 'overprint / trapping / total ink coverage / black composition', 'MANUAL CHECK', 'not inspected at all. Small text in near-black RGB can become a 4-colour black on conversion; the all-page paper tint adds ink. Not verified.');
+  add('P34', 'commercial printer compatibility (PDF/X profile, imposition, creep, trim-mark spec)', 'MANUAL CHECK', 'depends on the printer’s own specification. Not verified. This report is not a print-readiness certificate.');
   add('P26', 'PDF colour / PDF-X conformance', 'MANUAL CHECK', 'PDF is generated as RGB by Chromium. CMYK conversion, output intent and PDF/X conformance are NOT verified in v0.1; confirm with the printer\'s preflight');
 
   // ---- review gates
@@ -171,14 +187,16 @@ export async function runPreflight(id) {
   const prDone = fs.existsSync(pr) && /status:\s*complete/.test(fs.readFileSync(pr, 'utf8'));
   add('P28', 'Proofreader pass', prDone ? 'PASS' : 'MANUAL CHECK', prDone ? 'reviews/proofread.md is complete' : 'no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified');
 
-  const count = (s) => items.filter((i) => i.status === s).length;
-  const verdict = count('FAIL') ? 'FAIL' : count('WARNING') ? 'WARNING' : count('MANUAL CHECK') ? 'MANUAL CHECK' : 'PASS';
-  return { issue: id, generated_at: new Date().toISOString(), verdict, counts: { PASS: count('PASS'), WARNING: count('WARNING'), FAIL: count('FAIL'), 'MANUAL CHECK': count('MANUAL CHECK') }, items };
+  const count = (st) => items.filter((i) => i.status === st).length;
+  const kinds = {};
+  for (const i of items) kinds[i.kind] = (kinds[i.kind] ?? 0) + 1;
+  // never "PASS"/"ready": at best the automated checks passed and manual checks remain
+  const verdict = count('FAIL') ? 'FAIL' : count('WARNING') ? 'WARNING' : count('MANUAL CHECK') ? 'MANUAL CHECK REQUIRED' : 'AUTOMATED CHECKS PASSED';
+  return { issue: id, generated_at: new Date().toISOString(), verdict, disclaimer: 'Not a print-readiness certificate. Only AUTOMATED CHECK items are verified by script; HEURISTIC items are rules of thumb; MANUAL CHECK items are NOT verified.', counts: { PASS: count('PASS'), WARNING: count('WARNING'), FAIL: count('FAIL'), 'MANUAL CHECK': count('MANUAL CHECK') }, kinds, items };
 }
 
 export function preflightMarkdown(r) {
-  const icon = { PASS: 'PASS', WARNING: 'WARNING', FAIL: 'FAIL', 'MANUAL CHECK': 'MANUAL CHECK' };
-  const L = [`# Preflight — ${r.issue}`, '', `**${r.verdict}**　PASS ${r.counts.PASS} / WARNING ${r.counts.WARNING} / FAIL ${r.counts.FAIL} / MANUAL CHECK ${r.counts['MANUAL CHECK']}`, '', '> MANUAL CHECK = v0.1 では自動確認できない項目。確認済みではありません。', '', '| id | check | status | detail |', '|---|---|---|---|'];
-  for (const i of r.items) L.push(`| ${i.code} | ${i.check} | **${icon[i.status]}** | ${i.detail.replace(/\|/g, '\\|')} |`);
+  const L = [`# Preflight — ${r.issue}`, '', `**${r.verdict}**　PASS ${r.counts.PASS} / WARNING ${r.counts.WARNING} / FAIL ${r.counts.FAIL} / MANUAL CHECK ${r.counts['MANUAL CHECK']}`, '', `> **${r.disclaimer}**`, '>', '> - **AUTOMATED CHECK**: deterministic measurement by script.', '> - **HEURISTIC**: rule of thumb; can be wrong in both directions; a human decides.', '> - **MANUAL CHECK**: not verified at all. Do not read as "OK".', '', '| id | kind | check | status | detail |', '|---|---|---|---|---|'];
+  for (const i of r.items) L.push(`| ${i.code} | ${i.kind} | ${i.check} | **${i.status}** | ${i.detail.replace(/\|/g, '\\|')} |`);
   return L.join('\n') + '\n';
 }

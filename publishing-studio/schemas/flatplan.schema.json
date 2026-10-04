@@ -23,6 +23,7 @@
           "image_density": { "type": "integer", "minimum": 1, "maximum": 5 },
           "notes": { "type": "string" },
           "intentional_blank": { "type": "boolean" },
+          "intentional_sparse": { "type": "boolean", "description": "a text page that is deliberately sparse; requires a reason in `notes`" },
           "slots": { "type": "object", "description": "per-placement component inputs (hero_image, images, pull_quote ...)" }
         }
       }

@@ -1,10 +1,12 @@
 // Magazine rhythm analysis + Publication Fingerprint (machine-measurable subset).
 import { entriesOf } from './inputs.mjs';
+import { densityFindings, entryForPage } from './density.mjs';
 
 export const SEVERITIES = ['BLOCKER', 'HIGH', 'MEDIUM', 'LOW', 'NOTE'];
 export const DEFAULT_TARGET = { max_same_layout_run: 2, max_consecutive_image_heavy: 3, min_intensity_range: 40, max_opener_repeat: 3, min_quiet_pages: 1 };
 const OPENERS = new Set(['feature-opener', 'interview-opener']);
-const QUIET_EXEMPT = new Set(['contents', 'colophon', 'credits', 'divider', 'quote-page']);
+// layouts that are composed "quiet" pages by design (a quote / divider on paper)
+const QUIET_LAYOUTS = new Set(['contents', 'colophon', 'credits', 'divider', 'quote-page']);
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const stdev = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
@@ -12,19 +14,21 @@ const r1 = (x) => Math.round(x * 10) / 10;
 const stats = (a) => ({ min: r1(Math.min(...a)), max: r1(Math.max(...a)), mean: r1(mean(a)), stdev: r1(stdev(a)) });
 const bar = (v, max = 100, w = 20) => '█'.repeat(Math.round((v / max) * w)).padEnd(w, '·');
 
-export function analyzeRhythm(model, mx) {
+/** Every finding is classed: MEASUREMENT (a fact about the render), HEURISTIC (a rule of thumb), REVIEW_REQUIRED (needs a human). */
+export function analyzeRhythm(model, mx, reg) {
   const target = { ...DEFAULT_TARGET, ...(model.editorial?.fingerprint_target ?? {}) };
   const pages = mx.pages.map((m) => ({
     n: m.n, layout: m.layout, variant: m.variant, article: m.article, spread: m.spread,
     text_chars: m.text_chars, text_density: +Math.min(1, m.text_chars / 1400).toFixed(2),
     image_ratio: m.image_ratio, whitespace_ratio: m.whitespace_ratio, visual_elements: m.visual_elements,
     headline_pt: m.headline_pt, body_pt: m.body_pt, intensity: m.measured_intensity, declared_intensity: m.declared_intensity,
-    fit_fill: m.fit_fill, image_heavy: m.image_ratio >= 0.4,
-    quiet: !QUIET_EXEMPT.has(m.layout) ? m.whitespace_ratio >= 0.6 && m.image_ratio === 0 : false,
+    text_occupancy: m.text_occupancy, content_extent: m.content_extent_live, orphan_lines: m.orphan_lines?.length ?? 0, image_heavy: m.image_ratio >= 0.4,
+    // quiet = declared by the flatplan, or a composed quiet layout on paper. Under-filled body pages are NOT quiet pages.
+    quiet: !!entryForPage(model, m.n)?.intentional_sparse || (QUIET_LAYOUTS.has(m.layout) && m.whitespace_ratio >= 0.6 && m.image_ratio === 0),
   }));
   const findings = [];
   let seq = 0;
-  const add = (severity, category, pgs, problem, evidence, fix) => findings.push({ id: `A-${String(++seq).padStart(3, '0')}`, severity, category, pages: pgs, problem, evidence, fix, source: 'auto' });
+  const add = (severity, category, pgs, problem, evidence, fix, kind = 'HEURISTIC') => findings.push({ id: `A-${String(++seq).padStart(3, '0')}`, severity, category, pages: pgs, problem, evidence, fix, source: 'auto', kind });
 
   // runs over flatplan entries (a spread counts once)
   const entries = entriesOf(model);
@@ -81,15 +85,18 @@ export function analyzeRhythm(model, mx) {
   const drift = pages.filter((p) => p.declared_intensity && Math.abs(p.declared_intensity * 20 - p.intensity) > 45);
   if (drift.length) add('NOTE', 'consistency', drift.map((p) => p.n), `台割の visual_intensity と実測の乖離が大きい (${drift.length}p)`, drift.map((p) => `p${p.n}: 計画${p.declared_intensity}/5 vs 実測${p.intensity}/100`).join(', '), '台割の宣言値か、layout/variantを見直す');
 
-  // text frame fill
+  // density heuristics from the component contracts (replaces the old single "fit_fill < 35%" rule)
+  const dens = densityFindings(model, reg, mx.pages);
+  for (const f of dens.findings) add(f.severity, 'page-balance', f.pages, f.message, `${f.code} (HEURISTIC, component contract)`, f.fix);
+  const declaredSparse = dens.declared;
   for (const p of pages) {
-    if (p.fit_fill !== null && p.fit_fill > 1.02) add('HIGH', 'readability', [p.n], `本文枠が満杯を超過 (fill ${p.fit_fill})`, 'DOM計測: 行数×行送りが枠高を超過', '台割のページ配分を変えるか原稿を削る');
-    else if (p.fit_fill !== null && p.fit_fill < 0.35) add('LOW', 'page-balance', [p.n], `本文枠の充填率が低い (${Math.round(p.fit_fill * 100)}%)`, 'fit_fill<0.35 (自動計測)', '原稿量の調整、または意図した余白として台割にnotesで宣言する');
+    if (p.text_occupancy !== null && p.text_occupancy > 1.02) add('HIGH', 'readability', [p.n], `本文枠が満杯を超過 (occupancy ${p.text_occupancy})`, 'DOM計測: 行数×行送りが枠高を超過', '台割のページ配分を変えるか原稿を削る', 'MEASUREMENT');
+    if (p.orphan_lines) add('LOW', 'typography', [p.n], `孤立行（1〜2字+句読点だけの最終行）が${p.orphan_lines}か所`, 'DOM計測: 2行以上の段落/見出し/引用の最終行が2字幅以下', '字間・追い込み・文節折返しで調整する（組版ルール側の対処が望ましい）', 'MEASUREMENT');
   }
   for (const m of mx.pages) {
-    if (m.overflow.length) add('BLOCKER', 'readability', [m.n], '本文が枠から溢れて切れている', m.overflow.map((o) => `${o.el}: scroll ${o.scroll.join('x')} > client ${o.client.join('x')}`).join('; '), '文字量を削る/ページを足す/variantを変える');
-    if (m.outside.length) add('HIGH', 'page-balance', [m.n], '要素が仕上がり線の外にはみ出している', m.outside.map((o) => o.kind).join(', '), '配置を修正する');
-    if (m.min_font_pt !== null && m.min_font_pt < 6) add('LOW', 'typography', [m.n], `最小文字サイズ ${m.min_font_pt}pt`, '6pt未満の文字がある', 'キャプション等のサイズを上げる');
+    if (m.overflow.length) add('BLOCKER', 'readability', [m.n], '本文が枠から溢れて切れている', m.overflow.map((o) => `${o.el}: scroll ${o.scroll.join('x')} > client ${o.client.join('x')}`).join('; '), '文字量を削る/ページを足す/variantを変える', 'MEASUREMENT');
+    if (m.outside.length) add('HIGH', 'page-balance', [m.n], '要素が仕上がり線の外にはみ出している', m.outside.map((o) => o.kind).join(', '), '配置を修正する', 'MEASUREMENT');
+    if (m.min_font_pt !== null && m.min_font_pt < 6) add('LOW', 'typography', [m.n], `最小文字サイズ ${m.min_font_pt}pt`, '6pt未満の文字がある', 'キャプション等のサイズを上げる', 'MEASUREMENT');
   }
 
   const spreads = [];
@@ -103,8 +110,11 @@ export function analyzeRhythm(model, mx) {
       max_same_layout_run: maxLayoutRun, max_same_variant_run: maxVariantRun, max_consecutive_image_heavy: maxHeavy, quiet_pages: quiet.map((p) => p.n), intensity_range: range,
       distinct_spread_types: new Set(spreads.map((s) => s.layouts.join('+'))).size, spreads: spreads.length,
     },
-    pages, spreads, auto_findings: findings,
-    manual_check: [
+    pages, spreads, auto_findings: findings, declared_sparse: declaredSparse,
+    review_required: [
+      '余白が「美しい」か、意図された沈黙か（underfilled の機械判定は仮説にすぎない）',
+      '編集的なリズム（強弱の起伏が読者の体験として成立しているか）',
+      '視覚的な緊張感・見開きの力関係',
       '見開き単位での視線の流れ・バランス（contact-spreads.png）',
       '写真の被写体がノド（綴じ目）にかかっていないか',
       '書体・サイズ・字間の印象（D1）、モチーフの一貫性（D6）',
@@ -116,15 +126,20 @@ export function analyzeRhythm(model, mx) {
 
 export function rhythmMarkdown(r) {
   const L = [];
-  L.push(`# Magazine Rhythm — ${r.issue}`, '', '自動計測（DOM/CSS）。印象評価ではありません。強度 = 画像比・見出しスケール・地色から算出した0–100（`measured_intensity`）。', '');
-  L.push('| p | layout/variant | intensity | text | image | white | fill | |', '|--:|---|:--|--:|--:|--:|--:|---|');
-  for (const p of r.pages) L.push(`| ${p.n} | ${p.layout}/${p.variant ?? ''} | \`${bar(p.intensity)}\` ${p.intensity} | ${p.text_chars} | ${p.image_ratio} | ${p.whitespace_ratio} | ${p.fit_fill ?? '–'} | ${[p.quiet ? 'quiet' : '', p.image_heavy ? 'image' : ''].filter(Boolean).join(' ')} |`);
+  L.push(`# Magazine Rhythm — ${r.issue}`, '', 'Findings are classed. **MEASUREMENT** = a fact about the render (DOM/CSS). **HEURISTIC** = a rule of thumb that may be wrong. **REVIEW_REQUIRED** = no machine verdict is possible. A measurement is never converted into "good" or "bad" by itself.', '');
+  L.push('## MEASUREMENT (per page)', '', '| p | layout/variant | intensity* | text chars | image | whitespace | text occupancy | content extent | orphans | tags |', '|--:|---|:--|--:|--:|--:|--:|--:|--:|---|');
+  for (const p of r.pages) L.push(`| ${p.n} | ${p.layout}/${p.variant ?? ''} | \`${bar(p.intensity)}\` ${p.intensity} | ${p.text_chars} | ${p.image_ratio} | ${p.whitespace_ratio} | ${p.text_occupancy ?? '–'} | ${p.content_extent ?? '–'} | ${p.orphan_lines || ''} | ${[p.quiet ? 'quiet(declared/composed)' : '', p.image_heavy ? 'image' : ''].filter(Boolean).join(' ')} |`);
+  L.push('', '\\* intensity is a composite of image share, headline scale and fills (0–100): a descriptive number, not a quality score. "text occupancy" = lines set / lines the frame holds; "content extent" = how far down the live area the content reaches.');
   const s = r.summary;
-  L.push('', '## Summary', '', `- intensity: min ${s.intensity.min} / max ${s.intensity.max} / mean ${s.intensity.mean} (range ${s.intensity_range}, 目標 ≥ ${r.target.min_intensity_range})`, `- text chars/page: mean ${s.text_chars.mean} (min ${s.text_chars.min}, max ${s.text_chars.max})`, `- whitespace: mean ${s.whitespace.mean}`, `- 同一layout最長連続: ${s.max_same_layout_run} (上限 ${r.target.max_same_layout_run})`, `- 同一variant最長連続: ${s.max_same_variant_run}`, `- 写真主体ページの最長連続: ${s.max_consecutive_image_heavy} (上限 ${r.target.max_consecutive_image_heavy})`, `- 静かなページ: ${s.quiet_pages.join(', ') || 'なし'} (目標 ≥ ${r.target.min_quiet_pages})`, `- 見開きの種類: ${s.distinct_spread_types}/${s.spreads}`);
-  L.push('', '## 自動検出 (auto findings)', '');
-  if (!r.auto_findings.length) L.push('なし');
-  for (const f of r.auto_findings) L.push(`- **${f.id} [${f.severity}] ${f.category}** p${f.pages.join(',') || '–'} — ${f.problem}  \n  根拠: ${f.evidence}  \n  修正案: ${f.fix}`);
-  L.push('', '## 目視が必要 (自動判定不可)', '', ...r.manual_check.map((m) => `- [ ] ${m}`), '');
+  L.push('', '## MEASUREMENT (summary)', '', `- intensity: min ${s.intensity.min} / max ${s.intensity.max} / mean ${s.intensity.mean} (range ${s.intensity_range}; target ≥ ${r.target.min_intensity_range})`, `- text chars/page: mean ${s.text_chars.mean} (min ${s.text_chars.min}, max ${s.text_chars.max})`, `- longest same-layout run: ${s.max_same_layout_run} (limit ${r.target.max_same_layout_run}); same-variant run: ${s.max_same_variant_run}`, `- longest image-heavy run: ${s.max_consecutive_image_heavy} (limit ${r.target.max_consecutive_image_heavy})`, `- quiet pages (declared or composed): ${s.quiet_pages.join(', ') || 'none'} (target ≥ ${r.target.min_quiet_pages})`, `- distinct spread types: ${s.distinct_spread_types}/${s.spreads}`);
+  if (r.declared_sparse?.length) L.push(`- declared intentional_sparse: ${r.declared_sparse.map((d) => `p${d.page} (${d.note})`).join('; ')}`);
+  const bykind = (k) => r.auto_findings.filter((f) => f.kind === k);
+  for (const [k, title] of [['MEASUREMENT', 'MEASUREMENT findings (facts)'], ['HEURISTIC', 'HEURISTIC findings (rules of thumb — may be wrong; a human decides)']]) {
+    L.push('', `## ${title}`, '');
+    if (!bykind(k).length) L.push('none');
+    for (const f of bykind(k)) L.push(`- **${f.id} [${f.severity}] ${f.category}** p${f.pages.join(',') || '–'} — ${f.problem}  \n  evidence: ${f.evidence}  \n  suggestion: ${f.fix}`);
+  }
+  L.push('', '## REVIEW_REQUIRED (no machine verdict possible)', '', ...r.review_required.map((m) => `- [ ] ${m}`), '');
   return L.join('\n');
 }
 
@@ -156,14 +171,15 @@ export function computeFingerprint(model, mx, rhythm) {
     E2: { openers: opener, distinct: new Set(opener.map((o) => o.replace(/^p\d+ /, ''))).size },
     E3: { intensity_series: p.map((x) => x.measured_intensity), text_series: p.map((x) => x.text_chars) },
     E4: stats(p.map((x) => x.text_chars)),
-    E5: { article_types: types },
+    E5: { article_types: types, note: 'N/A for a single issue: recurrence needs >= 2 issues' },
     E6: { editorial_voice: model.editorial?.editorial_voice ?? null },
     I1: { accent: mx.tokens['--color-accent'], accent_2: mx.tokens['--color-accent-2'], full_color_pages: p.filter((x) => x.bg_fill).map((x) => x.n), target_motif: model.editorial?.fingerprint_target?.motif ?? null },
-    I2: { distinct_spread_types: rhythm.summary.distinct_spread_types, spreads: rhythm.summary.spreads },
+    I2: { distinct_spread_types: rhythm.summary.distinct_spread_types, spreads: rhythm.summary.spreads, note: 'low discriminating power on short issues (almost always every spread differs)' },
     I3: { image_ratio_series: p.map((x) => x.image_ratio), max_consecutive_image_heavy: rhythm.summary.max_consecutive_image_heavy },
     I4: { ink_ratio: stats(p.map((x) => x.ink_ratio)) },
     I5: { max_same_layout_run: rhythm.summary.max_same_layout_run, max_same_variant_run: rhythm.summary.max_same_variant_run },
     I6: { fonts_used: new Set(p.flatMap((x) => x.fonts)).size, folio_mismatch: p.filter((x) => x.folio && x.folio.text !== x.folio.expected).map((x) => x.n), overflow_pages: p.filter((x) => x.overflow.length).map((x) => x.n) },
   };
-  return AXES.map(([id, group, name, mode]) => ({ id, group, name, mode, measured: m[id], judged_by: mode === 'machine' ? 'script' : mode === 'visual' ? 'critic (visual only)' : 'script measures, critic judges' }));
+  const CLS = { machine: 'MEASUREMENT', hybrid: 'HEURISTIC', visual: 'REVIEW_REQUIRED' };
+  return AXES.map(([id, group, name, mode]) => ({ id, group, name, mode, class: CLS[mode], measured: m[id], judged_by: mode === 'machine' ? 'script measures a fact' : mode === 'visual' ? 'critic (visual only)' : 'script measures, critic judges' }));
 }

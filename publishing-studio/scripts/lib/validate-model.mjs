@@ -2,6 +2,7 @@
 import { checkSchema } from './schema.mjs';
 import { loadRegistry } from './registry.mjs';
 import { scanMarkdown } from './text.mjs';
+import { pageRoles, contractFor } from './density.mjs';
 import { buildInputs, entriesOf, imageRefs, isEmpty, planText, pagesOf } from './inputs.mjs';
 
 export const FORMATS = { A4: [210, 297], A5: [148, 210], A6: [105, 148], B5: [182, 257], B6: [128, 182] };
@@ -106,11 +107,18 @@ export async function validateModel(model, { probe } = {}) {
   // --- text allocation estimate (authoritative overflow check is the DOM check in render/preflight)
   const { plan, unplacedText } = planText(model, reg, probe?.frames);
   for (const id of unplacedText) add('error', 'TEXT_NOT_PLACED', `article "${id}" has body text but no text-capable layout in the flatplan`, model.articles[id].file);
+  const roles = pageRoles(model, reg);
+  for (const e of entries) {
+    if (e.intentional_sparse && !String(e.notes ?? '').trim()) add('error', 'INTENT_NEEDS_NOTE', `p${e.pages.join('-')}: intentional_sparse needs a reason in "notes" (intent must be explicit)`, `flatplan p${e.pages.join('-')}`);
+    if (e.intentional_sparse && reg.components[e.layout]?.density?.sparse_allowed) add('info', 'INTENT_REDUNDANT', `p${e.pages.join('-')}: ${e.layout} already allows sparse pages`, `flatplan p${e.pages.join('-')}`);
+  }
   for (const [e, p] of plan) {
     const where = `flatplan p${e.pages.join('-')}`;
+    const c = contractFor(reg.components[e.layout], roles.get(e.pages[0]));
     if (p.fill > 1.05) add('warning', 'TEXT_MAY_OVERFLOW', `body text on p${e.pages.join('-')} is estimated at ${Math.round(p.fill * 100)}% of its (measured) frame`, where);
-    else if (!p.blocks.length) add('warning', 'TEXT_PAGE_EMPTY', `p${e.pages.join('-')} (${e.layout}) is a text layout but receives no body text; shorten the plan or add copy`, where);
-    else if (p.fill < 0.35) add('warning', 'TEXT_PAGE_SPARSE', `body text on p${e.pages.join('-')} fills only ~${Math.round(p.fill * 100)}% of its frame`, where);
+    else if (e.intentional_sparse || c.sparseAllowed) continue;
+    else if (!p.blocks.length) add('warning', 'TEXT_PAGE_EMPTY', `p${e.pages.join('-')} (${e.layout}) is a text layout but receives no body text; shorten the plan, add copy, or declare intentional_sparse with a reason`, where);
+    else if (c.expected && p.fill < c.expected[0]) add('warning', 'TEXT_UNDERFILLED', `body text on p${e.pages.join('-')} is estimated at ${Math.round(p.fill * 100)}% of its frame; a "${roles.get(e.pages[0])}" page of this component is expected ≥${Math.round(c.expected[0] * 100)}% (heuristic, estimate before rendering)`, where);
   }
   // structural overflow: the page already overflows WITHOUT body text (very long headline/caption, too many contents entries)
   for (const m of probe?.metrics ?? []) {

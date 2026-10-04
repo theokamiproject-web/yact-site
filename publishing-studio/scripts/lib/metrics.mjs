@@ -93,6 +93,14 @@ export async function collectMetrics(browser, webDir, issue) {
       if (pg.dataset.bg) cells.fill(1);
       let covered = 0;
       for (const c of cells) covered += c;
+      // lowest inked row -> how far down the page the content reaches (MEASUREMENT). Relative to the live area when the page has one.
+      let lowRow = -1;
+      for (let j = GH - 1; j >= 0 && lowRow < 0; j--) for (let i = 0; i < GW; i++) if (cells[j * GW + i]) { lowRow = j; break; }
+      const lowY = ((lowRow + 1) / GH) * heightMm;
+      const liveEl = pg.querySelector('.live');
+      const liveR = liveEl ? rel(liveEl.getBoundingClientRect()) : null;
+      m.content_extent = +Math.min(1, lowY / heightMm).toFixed(3);
+      m.content_extent_live = liveR && liveR.h > 0 ? +Math.max(0, Math.min(1, (lowY - liveR.y) / liveR.h)).toFixed(3) : m.content_extent;
       m.ink_ratio = +(covered / cells.length).toFixed(3);
       m.whitespace_ratio = +(1 - covered / cells.length).toFixed(3);
 
@@ -111,10 +119,26 @@ export async function collectMetrics(browser, webDir, issue) {
       m.visual_elements = images.length + shapes + pg.querySelectorAll('h1, h2, h3, blockquote, .pullquote').length;
       let headPx = 0, bodyPx = 0;
       for (const el of pg.querySelectorAll('h1, h2, h3, .pullquote, .qp-text, .cv-title, .dv-title')) headPx = Math.max(headPx, parseFloat(getComputedStyle(el).fontSize));
-      const bp = pg.querySelector('.body p, .body, p');
+      const bp = pg.querySelector('.body');
       bodyPx = bp ? parseFloat(getComputedStyle(bp).fontSize) : 0;
       m.headline_pt = +(headPx * 0.75).toFixed(1);
-      m.body_pt = +(bodyPx * 0.75).toFixed(1);
+      m.body_pt = bodyPx ? +(bodyPx * 0.75).toFixed(1) : null; // running text only (.body); null on pages without any
+
+      // typographic orphan lines: a paragraph / title / quote of >= 2 lines whose last line is <= 2 characters wide (MEASUREMENT)
+      const orphans = [];
+      for (const el of pg.querySelectorAll('.body p, .body li, .qp-text, .pullquote, h1, h2, h3, .deck, .lead')) {
+        if (el.closest('.folio, .runhead')) continue;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+        if (!rects.length) continue;
+        const fsPx = parseFloat(getComputedStyle(el).fontSize);
+        const lines = new Map();
+        for (const r of rects) { const key = Math.round(r.top / (fsPx * 0.5)); lines.set(key, (lines.get(key) ?? 0) + r.width); }
+        const keys = [...lines.keys()].sort((a, b) => a - b);
+        if (keys.length >= 2 && lines.get(keys.at(-1)) < fsPx * 2.2) orphans.push({ text: el.textContent.trim().slice(-10), lines: keys.length });
+      }
+      m.orphan_lines = orphans;
 
       // overflow / clipping
       const overflow = [];
@@ -144,7 +168,6 @@ export async function collectMetrics(browser, webDir, issue) {
       m.fit_frames = frames.map((f) => ({ ...f, w: +f.w.toFixed(2), h: +f.h.toFixed(2), gap: +f.gap.toFixed(2), fs: +f.fs.toFixed(3), lh: +f.lh.toFixed(3) }));
       m.text_lines = textLines;
       m.text_occupancy = frames.length ? Math.max(...frames.map((f) => f.occupancy ?? 0)) : null;
-      m.fit_fill = m.text_occupancy; // deprecated alias, removed with the metrics redesign
       // table of contents capacity (rows that fit inside the live area)
       const tocItems = [...pg.querySelectorAll('.toc-item')];
       m.toc_items = tocItems.length ? { total: tocItems.length, fitting: tocItems.filter((el) => (el.getBoundingClientRect().bottom - pr.top) / k <= heightMm - safeMm).length } : null;
