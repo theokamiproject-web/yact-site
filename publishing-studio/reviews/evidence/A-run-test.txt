@@ -1,0 +1,165 @@
+
+> publication:test
+> node --test "publishing-studio/tests/*.test.mjs"
+
+TAP version 13
+# Subtest: all required components exist
+ok 1 - all required components exist
+  ---
+  duration_ms: 26.838102
+  type: 'test'
+  ...
+# Subtest: every component x variant renders the contracted number of pages and respects its contract
+ok 2 - every component x variant renders the contracted number of pages and respects its contract
+  ---
+  duration_ms: 8.261077
+  type: 'test'
+  ...
+# Subtest: template is pending, has all categories and the three required sections
+ok 3 - template is pending, has all categories and the three required sections
+  ---
+  duration_ms: 5.063665
+  type: 'test'
+  ...
+# Subtest: pending stages are reported as pending, not as problems
+ok 4 - pending stages are reported as pending, not as problems
+  ---
+  duration_ms: 49.925015
+  type: 'test'
+  ...
+# Subtest: complete review: parses findings (problem/evidence/pages/severity/fix) and validates
+ok 5 - complete review: parses findings (problem/evidence/pages/severity/fix) and validates
+  ---
+  duration_ms: 1.46258
+  type: 'test'
+  ...
+# Subtest: invalid severity, missing fix, bad page, duplicate id and empty scores are flagged
+ok 6 - invalid severity, missing fix, bad page, duplicate id and empty scores are flagged
+  ---
+  duration_ms: 0.6662
+  type: 'test'
+  ...
+# Subtest: rereview requires a disposition for every MEDIUM+ finding of earlier stages
+ok 7 - rereview requires a disposition for every MEDIUM+ finding of earlier stages
+  ---
+  duration_ms: 1.545927
+  type: 'test'
+  ...
+# Subtest: sample issue validates with no errors
+ok 8 - sample issue validates with no errors
+  ---
+  duration_ms: 76.045235
+  type: 'test'
+  ...
+# Subtest: schema: issue.yaml/editorial.yaml/flatplan.yaml/articles conform
+ok 9 - schema: issue.yaml/editorial.yaml/flatplan.yaml/articles conform
+  ---
+  duration_ms: 0.504499
+  type: 'test'
+  ...
+# Subtest: schema: rejects bad issue (missing field, bad enum, unknown key)
+ok 10 - schema: rejects bad issue (missing field, bad enum, unknown key)
+  ---
+  duration_ms: 0.446862
+  type: 'test'
+  ...
+# Subtest: page count: issue.pages larger than flatplan -> FLATPLAN_GAP; not multiple of 4 -> error
+ok 11 - page count: issue.pages larger than flatplan -> FLATPLAN_GAP; not multiple of 4 -> error
+  ---
+  duration_ms: 3.1742
+  type: 'test'
+  ...
+# Subtest: flatplan: duplicate page -> FLATPLAN_OVERLAP; gap -> FLATPLAN_GAP
+ok 12 - flatplan: duplicate page -> FLATPLAN_OVERLAP; gap -> FLATPLAN_GAP
+  ---
+  duration_ms: 1.80652
+  type: 'test'
+  ...
+# Subtest: missing article file -> ARTICLE_MISSING
+ok 13 - missing article file -> ARTICLE_MISSING
+  ---
+  duration_ms: 0.645406
+  type: 'test'
+  ...
+# Subtest: article not placed -> ARTICLE_NOT_PLACED
+ok 14 - article not placed -> ARTICLE_NOT_PLACED
+  ---
+  duration_ms: 0.778442
+  type: 'test'
+  ...
+# Subtest: invalid layout / variant / span / spread parity
+ok 15 - invalid layout / variant / span / spread parity
+  ---
+  duration_ms: 2.609151
+  type: 'test'
+  ...
+# Subtest: missing image file -> MISSING_ASSET; missing required input -> MISSING_INPUT
+ok 16 - missing image file -> MISSING_ASSET; missing required input -> MISSING_INPUT
+  ---
+  duration_ms: 4.361553
+  type: 'test'
+  ...
+# Subtest: missing caption is a warning at validate time
+ok 17 - missing caption is a warning at validate time
+  ---
+  duration_ms: 2.760537
+  type: 'test'
+  ...
+# Subtest: text volume: overlong body -> TEXT_MAY_OVERFLOW; no text layout -> TEXT_NOT_PLACED
+ok 18 - text volume: overlong body -> TEXT_MAY_OVERFLOW; no text layout -> TEXT_NOT_PLACED
+  ---
+  duration_ms: 2.305231
+  type: 'test'
+  ...
+# Subtest: loader reports YAML errors without throwing
+ok 19 - loader reports YAML errors without throwing
+  ---
+  duration_ms: 0.396861
+  type: 'test'
+  ...
+# Subtest: new-issue creates a valid issue from the template; rejects duplicates and bad ids
+ok 20 - new-issue creates a valid issue from the template; rejects duplicates and bad ids
+  ---
+  duration_ms: 312.29946
+  type: 'test'
+  ...
+# Subtest: validate CLI: exit 0 for the sample issue
+ok 21 - validate CLI: exit 0 for the sample issue
+  ---
+  duration_ms: 159.521577
+  type: 'test'
+  ...
+# Subtest: validate CLI: missing image -> exit 1 and a MISSING_ASSET message
+ok 22 - validate CLI: missing image -> exit 1 and a MISSING_ASSET message
+  ---
+  duration_ms: 153.285846
+  type: 'test'
+  ...
+# Subtest: publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight
+ok 23 - publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight
+  ---
+  duration_ms: 10455.633674
+  type: 'test'
+  ...
+# Subtest: preflight FAILs on overflowing text and on a PDF that no longer matches the sources
+ok 24 - preflight FAILs on overflowing text and on a PDF that no longer matches the sources
+  ---
+  duration_ms: 12715.478623
+  type: 'test'
+  ...
+# Subtest: critic --check: completed reviews are validated and produce critic-report.json
+ok 25 - critic --check: completed reviews are validated and produce critic-report.json
+  ---
+  duration_ms: 1053.03757
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25171.056267
+exit=0

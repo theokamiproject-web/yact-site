@@ -1,0 +1,9 @@
+{
+ "cv-title color (issue theme says lime, no !important)": "rgb(0, 255, 0)",
+ "cv-title font-size (issue theme says 20pt !important)": "26.6667px",
+ "kicker color (issue theme says blue)": "rgb(0, 0, 255)",
+ "folio right (issue theme says .folio{right:40mm}) on p5": "49.1339px",
+ "h1 letter-spacing (issue theme .page h1 = 1em)": "34.6667px"
+}
+ "cv-title font-size (issue theme says 20pt !important)": "74.6667px",
+ "kicker color (issue theme says blue)": "rgb(200, 69, 45)",

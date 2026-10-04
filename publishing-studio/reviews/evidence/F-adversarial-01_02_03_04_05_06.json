@@ -1,0 +1,116 @@
+{
+ "01-long-title": {
+  "expected": "validate/preflight should flag or layout should contain a very long headline without collision",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p4: text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim / p8: iv-text c-all fit clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim | publication:all adv-01-long-title: preflight FAIL (PASS 16, WARNING 4, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 340 font object(s) embedded, but 340 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p4: text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim / p8: iv-tex",
+    "WARNING P21 text inside the safe margin on p4,8",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "02-short-body": {
+  "expected": "warnings (TEXT_PAGE_EMPTY/SPARSE); build ok",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p6",
+    "warning:TEXT_PAGE_EMPTY@flatplan p7",
+    "warning:TEXT_PAGE_SPARSE@flatplan p13",
+    "warning:TEXT_PAGE_EMPTY@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P17 blank pages: blank (no text/image, uniform pixels): p14. Set intentional_blank: true in the flatplan if deliberate | publication:all adv-02-short-body: preflight FAIL (PASS 17, WARNING 3, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p6 fills only ~1% of its frame / p7 (feature-body) is a text layout but receives no body text; sh",
+    "WARNING P14 all 303 font object(s) embedded, but 303 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P17 blank (no text/image, uniform pixels): p14. Set intentional_blank: true in the flatplan if deliberate",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "03-long-body": {
+  "expected": "TEXT_MAY_OVERFLOW warning; preflight FAIL on clipped text",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_MAY_OVERFLOW@flatplan p7",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p7: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p7 is estimated at 531% of its frame / body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p7: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-tr",
+    "WARNING P21 text inside the safe margin on p7",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "04-no-image": {
+  "expected": "clear validation error (MISSING_INPUT)",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:MISSING_INPUT@flatplan p1",
+    "error:MISSING_INPUT@flatplan p4-5",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR MISSING_INPUT: cover/full requires \"hero_image\" (article \"cover\") [flatplan p1] |   ERROR MISSING_INPUT: feature-opener/spread-bleed requires \"hero_image\" (article \"harbor-theater\") [flatplan p4-5] | publication:all failed: validation failed"
+ },
+ "05-missing-image": {
+  "expected": "MISSING_ASSET error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:MISSING_ASSET@flatplan p4-5",
+    "error:MISSING_ASSET@flatplan p6",
+    "error:MISSING_ASSET@flatplan p7",
+    "error:MISSING_ASSET@articles/harbor-theater.md",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p4-5] |   ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p6] |   ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p7] |   ERROR MISSING_ASSET: asset \"nonexistent.jpg\" listed in article \"harbor-theater\" not found in images/ [articles/harbor-theater.md]"
+ },
+ "06-extreme-portrait": {
+  "expected": "builds; extreme crop visible; preflight should warn about aspect/crop or ppi",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P22 image resolution (effective ppi at placed size): min 65ppi (DOM-derived; ≥200 ok, <100 fail); <100: p7 stage-inline.jpg 65, p8 portrait-hamabe.jpg 66 | publication:all adv-06-extreme-portrait: preflight FAIL (PASS 17, WARNING 3, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P22 min 65ppi (DOM-derived; ≥200 ok, <100 fail); <100: p7 stage-inline.jpg 65, p8 portrait-hamabe.jpg 66",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ }
+}

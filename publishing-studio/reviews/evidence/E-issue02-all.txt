@@ -1,0 +1,38 @@
+
+[1/5] validate
+  WARNING TEXT_PAGE_SPARSE: body text on p20 fills only ~14% of its frame [flatplan p20]
+  WARNING TEXT_PAGE_SPARSE: body text on p14 fills only ~6% of its frame [flatplan p14]
+  WARNING TEXT_PAGE_SPARSE: body text on p22 fills only ~2% of its frame [flatplan p22]
+  WARNING TEXT_PAGE_SPARSE: body text on p3 fills only ~4% of its frame [flatplan p3]
+  WARNING TEXT_PAGE_SPARSE: body text on p10 fills only ~9% of its frame [flatplan p10]
+  WARNING TEXT_PAGE_SPARSE: body text on p17 fills only ~7% of its frame [flatplan p17]
+
+[2/5] build (Vivliostyle PDF)
+  vivliostyle 11.3.3 -> publishing-studio/output/test-issue-02/test-issue-02.pdf
+
+[3/5] render pages + contact sheets + metrics
+  rendered 24 page PNG(s) @110dpi -> publishing-studio/output/test-issue-02/pages
+  contact sheets: contact-4xN.png, contact-8xN.png, contact-spreads.png
+
+[4/5] critic preparation (review pack, rhythm, fingerprint)
+  review pack: publishing-studio/output/test-issue-02/review-pack
+  rhythm: publishing-studio/output/test-issue-02/rhythm.md (2 auto finding(s)); fingerprint: publishing-studio/output/test-issue-02/fingerprint.json
+  critic templates: publishing-studio/issues/test-issue-02/reviews/critic-{blind,context,rereview}.md
+  PENDING  blind: status is pending
+  PENDING  context: status is pending
+  PENDING  rereview: status is pending
+  critic-report.json: publishing-studio/output/test-issue-02/critic-report.json
+
+[5/5] preflight
+  WARNING      P06 editorial fit (target_pages / text volume): body text on p20 fills only ~14% of its frame / body text on p14 fills only ~6% of its frame / body text on p22 fills only ~2% of its frame / body text on p3 fills only ~4% of its frame / body text on p10 fills only ~9% of its frame / body text on p17 fills only ~7% of its frame
+  MANUAL CHECK P13 crop marks: built without crop marks. Ask the printer whether they add them; rebuild with: npm run publication:build -- test-issue-02 --marks
+  WARNING      P14 fonts embedded: all 211 font object(s) embedded, but 211 are Type 3 (Chromium output). Some printers' preflight rejects Type 3; confirm with the printer
+  FAIL         P19 overflow / text clipping: p2: text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim
+  WARNING      P21 safe area (text ≥ 5mm from trim): text inside the safe margin on p2
+  WARNING      P25 image colour space (RGB/CMYK): 14 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert RGB→CMYK: cover.jpg, full-single.jpg, grid-1.jpg, grid-2.jpg, grid-3.jpg…
+  MANUAL CHECK P26 PDF colour / PDF-X conformance: PDF is generated as RGB by Chromium. CMYK conversion, output intent and PDF/X conformance are NOT verified in v0.1; confirm with the printer's preflight
+  MANUAL CHECK P27 Publication Critic (blind/context/rereview): critic reviews not completed. Run npm run publication:critic -- test-issue-02 and have publication-critic fill critic-*.md
+  MANUAL CHECK P28 Proofreader pass: no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified
+
+publication:all test-issue-02: preflight FAIL (PASS 16, WARNING 4, FAIL 1, MANUAL CHECK 4)
+outputs: publishing-studio/output/test-issue-02/ {test-issue-02.pdf, pages/, contact/, rhythm.md, fingerprint.json, review-pack/, preflight.md}

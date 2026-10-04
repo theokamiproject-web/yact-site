@@ -1,0 +1,53 @@
+## git
+## claude/bold-shannon-746w8g...origin/claude/bold-shannon-746w8g
+?? publishing-studio/reviews/
+42b7d5b203b40924a659f7dff8c55a6037caf3e0
+42b7d5b Fix component count in build log
+0d1ab9a Add Publishing Studio agents, skills, critic/preflight, tests, sample issue and README
+892eec7 Add Publishing Studio v0.1 core: publication model, schemas, layouts, Vivliostyle build, render
+bc6da3a Merge pull request #30 from theokamiproject-web/claude/yurihonjo-theater-team-aqbjd1
+15c8187 Bring the performance credits in line with the flyer
+ publishing-studio/themes/base/tokens.css           |    64 +
+ publishing-studio/themes/base/typography.css       |    47 +
+ 126 files changed, 14977 insertions(+)
+## node
+v22.22.0
+10.9.4
+## lockfile
+-rw-r--r-- 1 root root 377407 Oct  4 03:40 package-lock.json
+-rw-r--r-- 1 root root   1075 Oct  4 04:03 package.json
+1
+node_modules/@vivliostyle/cli/package.json:4:  "version": "11.3.3",
+node_modules/playwright-core/package.json:3:  "version": "1.63.0",
+node_modules/sharp/package.json:4:  "version": "0.35.5",
+{
+  "name": "yact-site",
+  "private": true,
+  "type": "module",
+  "description": "Y-ACT site + Publishing Studio (publishing-studio/)",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@vivliostyle/cli": "^11.3.3",
+    "ajv": "^8.20.0",
+    "js-yaml": "^5.4.2",
+    "marked": "^18.0.14",
+    "pdf-lib": "^1.17.1",
+    "playwright-core": "^1.63.0",
+    "sharp": "^0.35.5"
+  },
+  "scripts": {
+    "publication:new": "node publishing-studio/scripts/new-issue.mjs",
+    "publication:validate": "node publishing-studio/scripts/validate.mjs",
+    "publication:build": "node publishing-studio/scripts/build.mjs",
+    "publication:preview": "node publishing-studio/scripts/preview.mjs",
+    "publication:render": "node publishing-studio/scripts/render-pages.mjs",
+    "publication:critic": "node publishing-studio/scripts/critic-pack.mjs",
+    "publication:preflight": "node publishing-studio/scripts/preflight.mjs",
+    "publication:all": "node publishing-studio/scripts/all.mjs",
+    "publication:test": "node --test \"publishing-studio/tests/*.test.mjs\""
+  }
+}
+## npm audit (summary)
+found 0 vulnerabilities

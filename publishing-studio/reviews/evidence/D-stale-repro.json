@@ -1,0 +1,106 @@
+{
+ "baseline_all_exit": 0,
+ "repro": {
+  "pdf_identical": false,
+  "pdf_sha": [
+   "c502fed51595",
+   "4451bf8aa2d7"
+  ],
+  "png_identical": true,
+  "png_diff_count": 0,
+  "metadata_run1": [
+   "Title:           TEST ISSUE 01 — 港町と舞台のはなし",
+   "Creator:         Vivliostyle (Vivliostyle.js 2.45.1; Chrome/141.0.7390.37)",
+   "Producer:        Skia/PDF m141",
+   "CreationDate:    Sun Oct  4 04:21:00 2026 UTC",
+   "ModDate:         Sun Oct  4 04:21:00 2026 UTC"
+  ],
+  "metadata_run2": [
+   "Title:           TEST ISSUE 01 — 港町と舞台のはなし",
+   "Creator:         Vivliostyle (Vivliostyle.js 2.45.1; Chrome/141.0.7390.37)",
+   "Producer:        Skia/PDF m141",
+   "CreationDate:    Sun Oct  4 04:21:12 2026 UTC",
+   "ModDate:         Sun Oct  4 04:21:12 2026 UTC"
+  ],
+  "text_identical": true
+ },
+ "stale": {
+  "article body": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "article front matter (title)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "caption": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "credits": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "editorial.yaml": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "issue.yaml (title)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "issue.yaml (bleed)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "flatplan (variant)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "flatplan (notes only)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "images.yaml (focal)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "theme_overrides (issue.yaml)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "themes/base/tokens.css": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "layouts/feature/style.css": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "layouts/feature/index.mjs": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "scripts/lib/compose.mjs (build logic)": {
+   "P10_after_source_change": "PASS",
+   "exit": 0
+  },
+  "scripts/lib/metrics.mjs (measure logic)": {
+   "P10_after_source_change": "PASS",
+   "exit": 0
+  },
+  "notes/ (expected: ignored)": {
+   "P10_after_source_change": "PASS",
+   "exit": 0
+  },
+  "image bytes (tide-1.jpg)": {
+   "P10_after_source_change": "FAIL",
+   "exit": 1
+  },
+  "article changed, build run, render NOT run": {
+   "P10": "PASS",
+   "P16_render_current": "FAIL",
+   "exit": 1
+  }
+ }
+}

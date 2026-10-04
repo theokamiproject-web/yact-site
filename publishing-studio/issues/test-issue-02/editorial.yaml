@@ -1,0 +1,17 @@
+concept: 街の一日を、短い断片と写真で並べる写真主導のZINE。長い文章は置かない。
+audience: 通勤・通学の合間に開く20〜40代。
+editorial_voice: 短く、断定しすぎない。
+mood: 朝の光、乾いた空気、夜の窓
+pacing: fast
+density: low
+keywords:
+  - 街
+  - 朝
+  - 夜
+  - 断片
+fingerprint_target:
+  max_same_layout_run: 2
+  max_consecutive_image_heavy: 3
+  min_intensity_range: 40
+  max_opener_repeat: 3
+  min_quiet_pages: 2

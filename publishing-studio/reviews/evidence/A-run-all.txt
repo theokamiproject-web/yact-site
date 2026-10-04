@@ -1,0 +1,36 @@
+
+> publication:all
+> node publishing-studio/scripts/all.mjs test-issue-01
+
+
+[1/5] validate
+  WARNING TEXT_PAGE_SPARSE: body text on p14 fills only ~35% of its frame [flatplan p14]
+
+[2/5] build (Vivliostyle PDF)
+  vivliostyle 11.3.3 -> publishing-studio/output/test-issue-01/test-issue-01.pdf
+
+[3/5] render pages + contact sheets + metrics
+  rendered 16 page PNG(s) @110dpi -> publishing-studio/output/test-issue-01/pages
+  contact sheets: contact-4xN.png, contact-8xN.png, contact-spreads.png
+
+[4/5] critic preparation (review pack, rhythm, fingerprint)
+  review pack: publishing-studio/output/test-issue-01/review-pack
+  rhythm: publishing-studio/output/test-issue-01/rhythm.md (1 auto finding(s)); fingerprint: publishing-studio/output/test-issue-01/fingerprint.json
+  critic templates: publishing-studio/issues/test-issue-01/reviews/critic-{blind,context,rereview}.md
+  PENDING  blind: status is pending
+  PENDING  context: status is pending
+  PENDING  rereview: status is pending
+  critic-report.json: publishing-studio/output/test-issue-01/critic-report.json
+
+[5/5] preflight
+  WARNING      P06 editorial fit (target_pages / text volume): body text on p14 fills only ~35% of its frame
+  MANUAL CHECK P13 crop marks: built without crop marks. Ask the printer whether they add them; rebuild with: npm run publication:build -- test-issue-01 --marks
+  WARNING      P14 fonts embedded: all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3; confirm with the printer
+  WARNING      P25 image colour space (RGB/CMYK): 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert RGB→CMYK: cover-harbor.jpg, harbor-hero.jpg, portrait-hamabe.jpg, stage-inline.jpg, tide-1.jpg…
+  MANUAL CHECK P26 PDF colour / PDF-X conformance: PDF is generated as RGB by Chromium. CMYK conversion, output intent and PDF/X conformance are NOT verified in v0.1; confirm with the printer's preflight
+  MANUAL CHECK P27 Publication Critic (blind/context/rereview): critic reviews not completed. Run npm run publication:critic -- test-issue-01 and have publication-critic fill critic-*.md
+  MANUAL CHECK P28 Proofreader pass: no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified
+
+publication:all test-issue-01: preflight WARNING (PASS 18, WARNING 3, FAIL 0, MANUAL CHECK 4)
+outputs: publishing-studio/output/test-issue-01/ {test-issue-01.pdf, pages/, contact/, rhythm.md, fingerprint.json, review-pack/, preflight.md}
+exit=0

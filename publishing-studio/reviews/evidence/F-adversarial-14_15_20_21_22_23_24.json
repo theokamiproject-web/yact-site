@@ -1,0 +1,135 @@
+{
+ "14-theme-font-12pt": {
+  "expected": "build ok; text overflow must be detected (P19 FAIL) or capacity estimate must adapt",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p6: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 340 font object(s) embedded, but 340 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p6: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-tr",
+    "WARNING P21 text inside the safe margin on p6,13",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "15-theme-margins": {
+  "expected": "safe-area / overflow / spine issues detected",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 0,
+  "all_tail": "publication:all adv-15-theme-margins: preflight WARNING (PASS 17, WARNING 4, FAIL 0, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "WARNING",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P21 text inside the safe margin on p1,2,4,6,7,8,9,12,14,16",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "20-blank-page": {
+  "expected": "blank page FAIL (P17) unless intentional",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_EMPTY@flatplan p15",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P17 blank pages: blank (no text/image, uniform pixels): p15. Set intentional_blank: true in the flatplan if deliberate | publication:all adv-20-blank-page: preflight FAIL (PASS 17, WARNING 3, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 p15 (essay) is a text layout but receives no body text; shorten the plan or add copy / body text on p14 fills ",
+    "WARNING P14 all 300 font object(s) embedded, but 300 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P17 blank (no text/image, uniform pixels): p15. Set intentional_blank: true in the flatplan if deliberate",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "21-special-filename": {
+  "expected": "images with spaces / Japanese / # in the name should work (or be rejected clearly)",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P18 broken images: p11 タイド 3 #a.jpg | publication:all adv-21-special-filename: preflight FAIL (PASS 17, WARNING 3, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P18 p11 タイド 3 #a.jpg",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "22-raw-html": {
+  "expected": "raw HTML/script in a manuscript must not execute or restyle the page",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P09 actual PDF page count: PDF has 1 page(s), expected 16 (a page overflowed or a section was dropped) |   FAIL         P18 broken images: p3 x | publication:all adv-22-raw-html: preflight FAIL (PASS 16, WARNING 2, FAIL 2, MANUAL CHECK 5)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "FAIL P09 PDF has 1 page(s), expected 16 (a page overflowed or a section was dropped)",
+    "FAIL P18 p3 x",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "23-article-type-mismatch": {
+  "expected": "semantic check: essay article placed in interview-body / feature in cover",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 0,
+  "all_tail": "publication:all adv-23-article-type-mismatch: preflight WARNING (PASS 18, WARNING 3, FAIL 0, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "WARNING",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~28% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "24-duplicate-article-id": {
+  "expected": "duplicate article ids must be an error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:ARTICLE_DUPLICATE@articles/editors-note.md",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR ARTICLE_DUPLICATE: duplicate article id \"editors-note\" [articles/editors-note.md] | publication:all failed: validation failed"
+ }
+}

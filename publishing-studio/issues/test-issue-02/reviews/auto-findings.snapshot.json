@@ -1,0 +1,26 @@
+[
+  {
+    "id": "A-001",
+    "severity": "LOW",
+    "category": "page-balance",
+    "pages": [
+      20
+    ],
+    "problem": "本文枠の充填率が低い (25%)",
+    "evidence": "fit_fill<0.35 (自動計測)",
+    "fix": "原稿量の調整、または意図した余白として台割にnotesで宣言する",
+    "source": "auto"
+  },
+  {
+    "id": "A-002",
+    "severity": "HIGH",
+    "category": "page-balance",
+    "pages": [
+      2
+    ],
+    "problem": "要素が仕上がり線の外にはみ出している",
+    "evidence": "text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim",
+    "fix": "配置を修正する",
+    "source": "auto"
+  }
+]

@@ -1,0 +1,40 @@
+
+> publication:preflight
+> node publishing-studio/scripts/preflight.mjs test-issue-01
+
+PASS         P01 flatplan / schema validity
+PASS         P02 article not placed
+PASS         P03 unknown layout / variant
+PASS         P04 missing asset
+PASS         P05 missing caption
+WARNING      P06 editorial fit (target_pages / text volume)
+             body text on p14 fills only ~35% of its frame
+PASS         P08 expected page count
+PASS         P09 actual PDF page count
+PASS         P10 PDF is current
+PASS         P11 page size (TrimBox)
+PASS         P12 bleed (BleedBox)
+MANUAL CHECK P13 crop marks
+             built without crop marks. Ask the printer whether they add them; rebuild with: npm run publication:build -- test-issue-01 --marks
+WARNING      P14 fonts embedded
+             all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3; confirm with the printer
+PASS         P15 missing font
+PASS         P17 blank pages
+PASS         P18 broken images
+PASS         P19 overflow / text clipping
+PASS         P20 page numbers (missing / duplicate / wrong)
+PASS         P21 safe area (text ≥ 5mm from trim)
+PASS         P22 image resolution (effective ppi at placed size)
+PASS         P23 full-bleed images extend into the bleed
+WARNING      P25 image colour space (RGB/CMYK)
+             7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert RGB→CMYK: cover-harbor.jpg, harbor-hero.jpg, portrait-hamabe.jpg, stage-inline.jpg, tide-1.jpg…
+MANUAL CHECK P26 PDF colour / PDF-X conformance
+             PDF is generated as RGB by Chromium. CMYK conversion, output intent and PDF/X conformance are NOT verified in v0.1; confirm with the printer's preflight
+MANUAL CHECK P27 Publication Critic (blind/context/rereview)
+             critic reviews not completed. Run npm run publication:critic -- test-issue-01 and have publication-critic fill critic-*.md
+MANUAL CHECK P28 Proofreader pass
+             no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified
+
+preflight test-issue-01: WARNING (PASS 18, WARNING 3, FAIL 0, MANUAL CHECK 4)
+report: publishing-studio/output/test-issue-01/preflight.md
+exit=0

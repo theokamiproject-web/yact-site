@@ -1,0 +1,130 @@
+[
+ {
+  "n": 1,
+  "layout": "cover/full",
+  "fit_fill": null,
+  "ws": 0,
+  "bottom_pct": 90,
+  "full": true
+ },
+ {
+  "n": 2,
+  "layout": "contents/list",
+  "fit_fill": null,
+  "ws": 0.837,
+  "bottom_pct": 69,
+  "full": false
+ },
+ {
+  "n": 3,
+  "layout": "column/box",
+  "fit_fill": null,
+  "ws": 0.686,
+  "bottom_pct": 48,
+  "full": false
+ },
+ {
+  "n": 4,
+  "layout": "feature-opener/spread-bleed",
+  "fit_fill": null,
+  "ws": 0.244,
+  "bottom_pct": 85,
+  "full": false
+ },
+ {
+  "n": 5,
+  "layout": "feature-opener/spread-bleed",
+  "fit_fill": null,
+  "ws": 0.247,
+  "bottom_pct": 86,
+  "full": false
+ },
+ {
+  "n": 6,
+  "layout": "feature-body/two-col",
+  "fit_fill": 0.91,
+  "ws": 0.378,
+  "bottom_pct": 88,
+  "full": false
+ },
+ {
+  "n": 7,
+  "layout": "feature-body/two-col-image",
+  "fit_fill": 0.48,
+  "ws": 0.539,
+  "bottom_pct": 68,
+  "full": false
+ },
+ {
+  "n": 8,
+  "layout": "interview-opener/portrait-left",
+  "fit_fill": 0.8,
+  "ws": 0.457,
+  "bottom_pct": 88,
+  "full": false
+ },
+ {
+  "n": 9,
+  "layout": "interview-body/qa",
+  "fit_fill": 0.47,
+  "ws": 0.694,
+  "bottom_pct": 52,
+  "full": false
+ },
+ {
+  "n": 10,
+  "layout": "photo-essay/grid-3",
+  "fit_fill": null,
+  "ws": 0.087,
+  "bottom_pct": 90,
+  "full": true
+ },
+ {
+  "n": 11,
+  "layout": "photo-essay/grid-3",
+  "fit_fill": null,
+  "ws": 0.436,
+  "bottom_pct": 89,
+  "full": false
+ },
+ {
+  "n": 12,
+  "layout": "quote-page/color-block",
+  "fit_fill": null,
+  "ws": 0,
+  "bottom_pct": 90,
+  "full": true
+ },
+ {
+  "n": 13,
+  "layout": "essay/opener",
+  "fit_fill": 0.93,
+  "ws": 0.56,
+  "bottom_pct": 84,
+  "full": false
+ },
+ {
+  "n": 14,
+  "layout": "essay/end",
+  "fit_fill": 0.34,
+  "ws": 0.815,
+  "bottom_pct": 38,
+  "full": false
+ },
+ {
+  "n": 15,
+  "layout": "colophon/with-credits",
+  "fit_fill": null,
+  "ws": 0.843,
+  "bottom_pct": 87,
+  "full": false
+ },
+ {
+  "n": 16,
+  "layout": "cover/back",
+  "fit_fill": null,
+  "ws": 0,
+  "bottom_pct": 90,
+  "full": true
+ }
+]

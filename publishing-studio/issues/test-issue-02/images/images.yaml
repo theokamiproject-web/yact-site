@@ -1,0 +1,28 @@
+cover.jpg:
+  orientation: portrait
+street-spread.jpg:
+  orientation: landscape
+shore.jpg:
+  orientation: landscape
+seq-1.jpg:
+  orientation: landscape
+seq-2.jpg:
+  orientation: square
+seq-3.jpg:
+  orientation: square
+seq-4.jpg:
+  orientation: landscape
+full-single.jpg:
+  orientation: portrait
+grid-1.jpg:
+  orientation: portrait
+grid-2.jpg:
+  orientation: landscape
+grid-3.jpg:
+  orientation: landscape
+person-a.jpg:
+  orientation: portrait
+person-b.jpg:
+  orientation: landscape
+person-c.jpg:
+  orientation: square

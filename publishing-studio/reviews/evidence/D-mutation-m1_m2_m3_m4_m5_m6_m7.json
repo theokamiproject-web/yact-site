@@ -1,0 +1,14 @@
+{
+ "m1 overflow detection disabled (metrics)": "SURVIVED (no test failed)",
+ "m2 spread parity check removed (validate)": "KILLED by: invalid layout / variant / span / spread parity",
+ "m3 staleness hash constant (build)": "KILLED by: preflight FAILs on overflowing text and on a PDF that no longer matches the sources",
+ "m4 Q/A orphan rule removed (text)": "KILLED by: publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight",
+ "m5 :where specificity fix reverted (css)": "KILLED by: publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight",
+ "m6 PDF page-count check always PASS (preflight)": "SURVIVED (no test failed)",
+ "m7 rereview disposition check removed (critic)": "KILLED by: rereview requires a disposition for every MEDIUM+ finding of earlier stages | critic --check: completed reviews are validated and produce critic-report.json",
+ "m10 blank-page check disabled (preflight)": "SURVIVED (no test failed)",
+ "m11 safe-area check disabled (preflight)": "SURVIVED (no test failed)",
+ "m12 ppi check disabled (preflight)": "SURVIVED (no test failed)",
+ "m13 bleed box check disabled (preflight)": "SURVIVED (no test failed)",
+ "m14 blind pack leaks flatplan (critic-run)": "KILLED by: publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight"
+}

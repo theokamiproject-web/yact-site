@@ -1,0 +1,18 @@
+id: test-issue-02
+title: TEST ISSUE 02
+subtitle: 朝と夜のあいだ
+issue_number: 2
+date: 2026年11月
+publisher: 架空の編集室
+theme: base
+theme_overrides:
+  --color-accent: '#2f6f5e'
+  --color-accent-2: '#3a2f4a'
+format: B5
+width: 182
+height: 257
+pages: 24
+binding: saddle-stitch
+bleed: 3
+language: ja
+running_header: TEST ISSUE 02

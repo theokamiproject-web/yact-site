@@ -4,11 +4,11 @@ status: pending
 reviewer:
 round: 1
 ---
-# Publication Critic — rereview review (TEST ISSUE 01)
+# Publication Critic — rereview review (TEST ISSUE 02)
 
 > 修正後に再build/再render/`publication:critic`を実行したあとで行う。blind/contextの全指摘（MEDIUM以上は必須）に対し、新しいPNGを見て disposition を付ける。修正で生じた新しい問題（regressed）も探す。
 >
-> 完了したら front matter を `status: complete` にし、`npm run publication:critic -- test-issue-01 --check` で構造を検証する。
+> 完了したら front matter を `status: complete` にし、`npm run publication:critic -- test-issue-02 --check` で構造を検証する。
 
 ## Scores (1–5)
 
@@ -28,13 +28,14 @@ round: 1
 ## Auto findings (scripts / mechanical — do not edit between markers)
 
 <!-- AUTO:BEGIN -->
-generated: 2026-10-04T04:12:19.840Z
+generated: 2026-10-04T04:26:35.696Z
 
-- A-001 [LOW] page-balance p14: 本文枠の充填率が低い (34%) — fit_fill<0.35 (自動計測)
+- A-001 [LOW] page-balance p20: 本文枠の充填率が低い (25%) — fit_fill<0.35 (自動計測)
+- A-002 [HIGH] page-balance p2: 要素が仕上がり線の外にはみ出している — text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim
 
 ### diff vs snapshot (first pack)
-- RESOLVED A-002 要素が仕上がり線の外にはみ出している
-- STILL A-001 [LOW] 本文枠の充填率が低い (34%)
+- STILL A-001 [LOW] 本文枠の充填率が低い (25%)
+- STILL A-002 [HIGH] 要素が仕上がり線の外にはみ出している
 <!-- AUTO:END -->
 
 ## Findings

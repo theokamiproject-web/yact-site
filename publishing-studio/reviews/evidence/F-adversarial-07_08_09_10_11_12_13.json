@@ -1,0 +1,143 @@
+{
+ "07-extreme-landscape": {
+  "expected": "builds; extreme crop; low ppi flagged (hero 6000x200 on a 308mm spread is fine px-wise but 200px high)",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P22 image resolution (effective ppi at placed size): min 36ppi (DOM-derived; ≥200 ok, <100 fail); <100: p4 harbor-hero.jpg 36, p5 harbor-hero.jpg 36, p11 tide-2.jpg 59 | publication:all adv-07-extreme-landscape: preflight FAIL (PASS 17, WARNING 3, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 344 font object(s) embedded, but 344 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P22 min 36ppi (DOM-derived; ≥200 ok, <100 fail); <100: p4 harbor-hero.jpg 36, p5 harbor-hero.jpg 36, p11 tide-2.jp",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "08-no-caption": {
+  "expected": "validate warning; preflight FAIL P05",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:MISSING_CAPTION@flatplan p4-5",
+    "warning:MISSING_CAPTION@flatplan p4-5",
+    "warning:MISSING_CAPTION@flatplan p4-5",
+    "warning:MISSING_CAPTION@flatplan p6",
+    "warning:MISSING_CAPTION@flatplan p6",
+    "warning:MISSING_CAPTION@flatplan p6",
+    "warning:MISSING_CAPTION@flatplan p7",
+    "warning:MISSING_CAPTION@flatplan p7",
+    "warning:MISSING_CAPTION@flatplan p7",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P05 missing caption: no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) (+3) | publication:all adv-08-no-caption: pr",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "FAIL P05 no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no ",
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 336 font object(s) embedded, but 336 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "09-long-caption": {
+  "expected": "long captions must not overflow/clip silently",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p5: text-outside-trim, text-outside-trim / p10: text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim | publication:all adv-09-long-caption: preflight FAIL (PASS 16, WARNING 4, FAIL 1, MANUAL CHECK 4)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P06 body text on p14 fills only ~35% of its frame",
+    "WARNING P14 all 334 font object(s) embedded, but 334 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p5: text-outside-trim, text-outside-trim / p10: text-outside-trim, text-outside-trim, text-outside-trim, text-",
+    "WARNING P21 text inside the safe margin on p5,10",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "10-unplaced-article": {
+  "expected": "ARTICLE_NOT_PLACED error, all.mjs exits non-zero",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:ARTICLE_NOT_PLACED@articles/night-road.md",
+    "error:TEXT_NOT_PLACED@articles/night-road.md"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_GAP: page 13 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 14 is not in the flatplan [flatplan.yaml] |   ERROR ARTICLE_NOT_PLACED: article \"night-road\" is not placed in the flatplan (set status: spiked to exclude) [articles/night-road.md] |   ERROR TEXT_NOT_PLACED: article \"night-road\" has body text but no text-capable layout in the flatplan [articles/night-r"
+ },
+ "11-duplicate-page": {
+  "expected": "FLATPLAN_OVERLAP + FLATPLAN_GAP",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_OVERLAP@flatplan p7",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_OVERLAP: page 7 is placed twice [flatplan p7] |   ERROR FLATPLAN_GAP: page 6 is not in the flatplan [flatplan.yaml] | publication:all failed: validation failed"
+ },
+ "12-spread-parity": {
+  "expected": "SPREAD_PARITY error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:SPREAD_PARITY@flatplan p11-12",
+    "error:FLATPLAN_OVERLAP@flatplan p12",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR SPREAD_PARITY: a spread must start on an even (left) page, got 11 [flatplan p11-12] |   ERROR FLATPLAN_OVERLAP: page 12 is placed twice [flatplan p12] |   ERROR FLATPLAN_GAP: page 10 is not in the flatplan [flatplan.yaml] | publication:all failed: validation failed"
+ },
+ "13a-pages-20": {
+  "expected": "FLATPLAN_GAP errors",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_GAP: page 17 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 18 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 19 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 20 is not in the flatplan [flatplan.yaml]"
+ },
+ "13b-pages-12": {
+  "expected": "FLATPLAN_RANGE errors",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_RANGE@flatplan p13",
+    "error:FLATPLAN_RANGE@flatplan p14",
+    "error:FLATPLAN_RANGE@flatplan p15",
+    "error:FLATPLAN_RANGE@flatplan p16",
+    "warning:TEXT_PAGE_SPARSE@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_RANGE: page 13 exceeds issue.pages=12 [flatplan p13] |   ERROR FLATPLAN_RANGE: page 14 exceeds issue.pages=12 [flatplan p14] |   ERROR FLATPLAN_RANGE: page 15 exceeds issue.pages=12 [flatplan p15] |   ERROR FLATPLAN_RANGE: page 16 exceeds issue.pages=12 [flatplan p16]"
+ }
+}
