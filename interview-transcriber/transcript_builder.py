@@ -41,6 +41,22 @@ def turn_gap(prev: dict, nxt: dict) -> float:
 
 NO_SPACE_LANGS = {"ja", "zh"}
 
+# 日本語は alignment が「1文字=1word」になるため、話者を文字ごとに決めると語の途中で話者が分かれる
+# （Track-81: 語の内部にある話者境界が142件）。語（形態素）を単位に多数決で話者を決める。
+# 形態素解析は純Pythonの janome（任意依存。無ければ従来どおり文字単位）。
+try:  # pragma: no cover - 環境依存
+    from janome.tokenizer import Tokenizer as _JanomeTokenizer
+except ImportError:  # pragma: no cover
+    _JanomeTokenizer = None
+_TOKENIZER = None
+
+
+MAX_WORD_TOKENS = 8   # これより長い形態素（「ぉぉぉぉ…」など）は語単位の多数決の対象にしない
+
+
+def word_vote_available() -> bool:
+    return _JanomeTokenizer is not None
+
 
 # ------------------------------------------------------------------ tokens
 def _tokens_from_aligned(aligned: dict, wr_segments: list[dict] | None) -> list[dict]:
@@ -90,6 +106,73 @@ def _assign_token_speakers(tokens: list[dict], diar: list[dict]) -> None:
         tk["speaker"] = max(ov, key=ov.get) if ov else None
 
 
+def _word_groups(tokens: list[dict]) -> list[tuple[int, int]]:
+    """文（SENT_END で区切る）ごとに形態素解析し、トークン列を語ごとの範囲 [lo, hi) に分ける。
+    語の境界がトークン（複数文字のtokenもある）の内部に落ちる場合は、そのtokenを分けず前後の語を1つにまとめる。"""
+    global _TOKENIZER
+    if _JanomeTokenizer is None:
+        return []
+    if _TOKENIZER is None:
+        _TOKENIZER = _JanomeTokenizer()
+    groups: list[tuple[int, int]] = []
+    lo = 0
+    n = len(tokens)
+    while lo < n:
+        hi = lo
+        while hi < n:
+            hi += 1
+            if tokens[hi - 1]["t"].strip()[-1:] in SENT_END and tokens[hi - 1]["t"].strip():
+                break
+        starts, pos = [], 0
+        for tk in tokens[lo:hi]:
+            starts.append(pos)
+            pos += len(tk["t"])
+        text = "".join(tk["t"] for tk in tokens[lo:hi])
+        valid = set(starts)
+        edges, off = [], 0
+        for m in _TOKENIZER.tokenize(text):
+            off += len(m.surface)
+            if off in valid or off == len(text):
+                edges.append(off)
+        if not edges or edges[-1] != len(text):
+            edges.append(len(text))
+        a = 0
+        for e in edges:
+            lo_i = starts.index(a) if a in valid else None
+            hi_i = starts.index(e) if e in valid else len(starts)
+            if lo_i is not None and hi_i > lo_i:
+                groups.append((lo + lo_i, lo + hi_i))
+            a = e
+        lo = hi
+    return groups
+
+
+def _vote_speakers_by_word(tokens: list[dict], diar: list[dict]) -> int:
+    """語（形態素）を構成する文字へのpyannoteとの重なりを話者ごとに合計し、最大の話者を語全体の話者にする。
+    語の内部で話者が変わらないようにするだけで、語どうしの話者交替・短い割り込みの語は変えない。
+    返り値: 話者が変わったトークン数。"""
+    diar = sorted(diar, key=lambda d: d["start"])
+    changed = 0
+    for lo, hi in _word_groups(tokens):
+        if hi - lo < 2 or hi - lo > MAX_WORD_TOKENS:
+            continue            # 長い連続（笑い声・伸ばした声など）は「語」ではない。複数人の重なりを1人にまとめない
+        grp = tokens[lo:hi]
+        if any(tk["t"].strip() and tk["t"].strip()[-1] in "。、？！?!,.…" for tk in grp):
+            continue            # 句読点を含む群は対象外（句読点の長さには無音が含まれるため）
+        tot: dict[str, float] = {}
+        for tk in grp:
+            for spk, v in overlap_by_speaker(diar, tk["start"], max(tk["end"], tk["start"] + 0.01)).items():
+                tot[spk] = tot.get(spk, 0.0) + v
+        if not tot:
+            continue
+        win = max(tot, key=tot.get)
+        for tk in grp:
+            if tk["speaker"] != win:
+                tk["speaker"] = win
+                changed += 1
+    return changed
+
+
 def _split_sentence_by_speaker(sent: list[dict], min_run_sec: float, min_chars: int = 4) -> list[list[dict]]:
     """1文の中の話者交替を扱う。短い区間（診断の揺れの可能性が高い）は長い隣接区間へ吸収し、
     十分長い区間だけを別発言として分ける。"""
@@ -117,13 +200,15 @@ def _split_sentence_by_speaker(sent: list[dict], min_run_sec: float, min_chars: 
 # ------------------------------------------------------------------ turns
 def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[dict] | None = None,
                 merge_gap: float | None = None, max_chars: int = 140, min_run_sec: float = 0.6,
-                mark_unclear_logprob: float | None = None) -> list[dict]:
+                mark_unclear_logprob: float | None = None, word_vote: bool = True) -> list[dict]:
     tokens = _tokens_from_aligned(aligned, whisper_segments)
     if not tokens:
         return []
     diarized = bool(diar)
     if diarized:
         _assign_token_speakers(tokens, diar)
+        if word_vote and aligned.get("language", "ja") == "ja":
+            _vote_speakers_by_word(tokens, diar)
     else:
         for tk in tokens:
             tk["speaker"] = None

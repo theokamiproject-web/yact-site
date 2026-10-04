@@ -632,11 +632,12 @@ SPLIT_PHRASE_LINES = [("SPEAKER_00", "最初の話題について説明します
 def test_high_hallucination_is_rejected_from_clean_and_magazine_but_kept_in_raw_and_json(tmp_path, monkeypatch):
     rc, out, _ = _run_with_fake_whisperx(tmp_path, monkeypatch, SPLIT_PHRASE_LINES)
     raw, clean, mag = [(out / f).read_text() for f in ("01_raw_transcript.md", "02_clean_transcript.md", "03_magazine_interview.md")]
-    assert "ご視聴ありがとうござ" in raw and "いました。" in raw          # 逐語録は原文のまま
+    # 逐語録は原文のまま。語（形態素）単位の話者割当により、語の途中（ござ|いました）だった境界は語の切れ目（ござい|ました）に動く
+    assert "ご視聴ありがとうござい" in raw and "ました。" in raw
     assert "ご視聴" not in clean and "ご視聴" not in mag                 # 02/03 からは HIGH だけ除く
     assert "作んないと。" in mag                                         # 同じ発言の実在部分は残す
     data = json.loads((out / "transcript.json").read_text())
-    assert any("ご視聴ありがとうござ" in d["raw_text"] for d in data)    # JSONのraw_textも原文
+    assert any("ご視聴ありがとうござい" in d["raw_text"] for d in data)   # JSONのraw_textも原文
     assert any(d["reject_ops"] for d in data) and any(d["drop_reason"] == "hallucination" for d in data)
     review = (out / "review_required.md").read_text()
     assert "[HIGH] 既知の幻覚定型句" in review and "自動不採用" in review and "複数の発言に分かれています" in review

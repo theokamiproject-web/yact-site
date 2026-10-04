@@ -229,6 +229,9 @@ def main(argv=None) -> int:
                            mark_unclear_logprob=a.mark_unclear_logprob)
     if not turns:
         notes.append("認識結果が空でした（無音、または言語指定の誤りの可能性）。")
+    if diar_segments and a.language == "ja" and not tb.word_vote_available():
+        notes.append("janome が未導入のため、話者を文字単位で割り当てています（語の途中で話者が分かれることがあります）。"
+                     "pip install janome で語単位の割り当てになります。")
     mapping = diarization.load_speakers(a.speakers)
     labels = tb.apply_speaker_names(turns, mapping)
     title = stem
