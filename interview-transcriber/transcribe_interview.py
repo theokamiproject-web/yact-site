@@ -225,6 +225,7 @@ def main(argv=None) -> int:
     n_rej = sum(1 for f in findings if f.action == "reject" and not a.keep_hallucinations)
     log(f"[幻覚検出] HIGH {sum(f.confidence == 'HIGH' for f in findings)}（自動不採用 {n_rej}）/ "
         f"MEDIUM {sum(f.confidence == 'MEDIUM' for f in findings)} / LOW {sum(f.confidence == 'LOW' for f in findings)}"
+        f" / NON_SPEECH {sum(f.confidence == 'NON_SPEECH' for f in findings)}"
         + (f" ／ ASR未転写候補 {untr[1]['regions']}件" if untr else ""))
     tb.write_json(out_dir / "transcript.json", turns)
 

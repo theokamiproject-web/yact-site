@@ -171,15 +171,18 @@ def _span_text(turns, ids) -> tuple[str, str]:
 
 
 def _render_findings(findings, turns, keep: bool) -> list[str]:
-    rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    import hallucination as hal
+    rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "NON_SPEECH": 3}
     hs = sorted([f for f in findings if f.kind != "boundary"],
                 key=lambda f: (rank[f.confidence], turns[f.turn_ids[0]]["start"]))
     cnt = {c: sum(1 for f in hs if f.confidence == c) for c in rank}
     rejected = sum(1 for f in hs if f.action == "reject" and not keep)
     L = ["## 幻覚の検出", "",
-         f"HIGH {cnt['HIGH']}（うち自動不採用 {rejected}）／ MEDIUM {cnt['MEDIUM']} ／ LOW {cnt['LOW']}",
-         "- **HIGH** は確実性が高いものだけ。02_clean／03_magazine から除外します（**01_raw と transcript.json の raw_text は原文のまま**）。",
-         "- **MEDIUM／LOW** は要確認のみで、**削除していません**（正しい短い発話の可能性があるため）。", ""]
+         f"HIGH {cnt['HIGH']}（事象 {hal.count_events(hs, turns, 'HIGH')}・うち自動不採用 {rejected}）／ MEDIUM {cnt['MEDIUM']} ／ LOW {cnt['LOW']} ／ NON_SPEECH（笑い声など）{cnt['NON_SPEECH']}",
+         "- **HIGH**: 人間確認なしでも自動不採用が比較的安全な、典型的なASR幻覚・明白な異常反復。02_clean／03_magazine から除外します（**01_raw と transcript.json の raw_text は原文のまま**）。",
+         "- **MEDIUM**: 強く怪しいが実発話の可能性があるもの。**削除していません**。",
+         "- **LOW**: 確認する価値はあるが根拠が弱いもの。**削除していません**。",
+         "- **NON_SPEECH**: 笑い声などの非言語発声の反復。幻覚ではない可能性が高いため**削除していません**（参考表示）。", ""]
     if not hs:
         L += ["検出なし。", ""]
     for f in hs:
@@ -188,9 +191,12 @@ def _render_findings(findings, turns, keep: bool) -> list[str]:
             handling = "要確認（--keep-hallucinations のため除外していません）" if keep else "**自動不採用**（02_clean／03_magazine から除外。01_rawには残っています）"
             if f.kind == "loop":
                 handling = handling.replace("除外", "反復を1回分に畳む") if not keep else handling
+        elif f.confidence == "NON_SPEECH":
+            handling = "参考（笑い声などの可能性が高く、削除していません）"
         else:
             handling = "要確認（削除していません）"
-        label = {"phrase": "既知の幻覚定型句", "loop": "反復ループ", "tail_short": "音声末尾／長い無音直前の短い発言"}[f.kind]
+        label = {"phrase": "既知の幻覚定型句", "loop": "反復ループ", "tail_short": "音声末尾／長い無音直前の短い発言",
+                 "weak_phrase": "孤立した挨拶的定型句", "laughter_repeat": "非言語の反復（笑い声など）"}[f.kind]
         L += [f"### [{f.confidence}] {label}　{tc}", "",
               f"- 話者: {who}", f"- 対象テキスト: {f.text}", f"- 処理: {handling}", f"- 理由: {f.reason}"]
         d = f.detail
@@ -198,8 +204,10 @@ def _render_findings(findings, turns, keep: bool) -> list[str]:
             sil = "不明" if d.get("silence_after") is None else f"{d['silence_after']}秒"
             L += [f"- 長さ: {d['duration']}秒　／ 直後の無音: {sil}　／ チャンク末尾: {'はい' if d['chunk_end'] else 'いいえ'}　"
                   f"／ 音声末尾: {'はい' if d['audio_end'] else 'いいえ'}"]
-        elif f.kind == "loop":
+        elif f.kind in ("loop", "laughter_repeat"):
             L += [f"- 反復: 「{d['unit']}」×{d['repeats']}（{d['chars']}字）"]
+        elif f.kind == "weak_phrase":
+            L += [f"- 重なった条件: {', '.join(d['signals'])}　／ 長さ: {d['duration']}秒"]
         L.append("")
     bs = [f for f in findings if f.kind == "boundary"]
     L += ["## speaker境界要確認", "",

@@ -1,9 +1,10 @@
 """ASR幻覚・脱落の検出（PHASE 2）。
 
-方針: **正しい短い発話を消すほうが危険**。したがって
-  - HIGH   : 確実性が高いものだけ。自動不採用の対象（02/03 から除く。01_raw と raw_text は不変）
-  - MEDIUM : 要確認。削除しない
-  - LOW    : 参考。削除しない
+方針: **正しい短い発話を消すほうが危険**。「反復だから HIGH」ではなく、反復の種類を分類してから確信度を決める。
+  - HIGH      : 人間確認なしでも自動不採用が比較的安全なもの（典型ASR幻覚・明白な異常反復）。02/03 から除く。01_raw と raw_text は不変
+  - MEDIUM    : 強く怪しいが実発話の可能性がある。削除しない
+  - LOW       : 確認価値はあるが根拠が弱い。削除しない
+  - NON_SPEECH: 笑い声などの非言語発声の反復。幻覚ではない可能性が高い。削除しない（参考表示のみ）
 検出は発言(turn)単位ではなく、**連続する最大3発言の窓**でも行う（ASR/話者分離が1つの幻覚を複数発言に
 割ると、発言単位の検査をすり抜けるため）。窓は検査専用で、transcript自体は結合しない。
 """
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from text_utils import is_backchannel
 from transcript_builder import turn_gap
 
-HIGH, MEDIUM, LOW = "HIGH", "MEDIUM", "LOW"
+HIGH, MEDIUM, LOW, NON_SPEECH = "HIGH", "MEDIUM", "LOW", "NON_SPEECH"
 
 # ---- 既知の典型幻覚定型句（比較は 空白・句読点・長音符を除き小文字化した文字列で行う）
 HIGH_PHRASES = [
@@ -31,9 +32,13 @@ WEAK_PHRASES = [
 ]
 
 # ---- 反復ループ
-LOOP_MAX_UNIT = 12
+LOOP_MAX_UNIT = 40            # 句・文の長さの反復（「居た時と居なかったですよね」13字など）も対象にする
+CHAIN_CAP = 40                # 反復検査用の時系列windowに入れる最大発言数
+SIM_THRESHOLD = 0.85          # 言い回しが少し違う反復の類似度（difflib）
 NATURAL_UNITS = {"はい", "そう", "うん", "いや", "ええ", "まあ", "ああ", "えー", "なるほど", "そうそう", "いやいや", "はいはい"}
-LAUGH_CHARS = set("はひふへほわあうんっ")
+# 笑い声・非言語発声（「ははは」「あっはっは」「ふふ」「へへ」「ひひ」「わはは」「うふふ」「ええええ」…）の構成文字。
+# 特定の語を例外にするのではなく、**この文字だけでできた単位の反復**を言語的な反復ループとは別の種類として扱う。
+VOCAL_CHARS = set("はひふへほわあうえおっんハヒフヘホワアウエオッン")
 
 _SKIP = re.compile(r"[\s、。，．,.!?！？・…「」『』（）()\[\]ー〜~\-:：;；]")
 _PUNCT_END = "。、？！?!,.…"
@@ -125,49 +130,176 @@ def detect_phrases(turns: list[dict], max_gap: float = 3.0) -> list[Finding]:
 
 
 # ------------------------------------------------------------------ 2-2 反復ループ（特定語のブラックリストではない）
-def _classify_loop(unit: str, r: int) -> str | None:
+def is_vocal(unit: str) -> bool:
+    """笑い声などの非言語発声だけでできた単位か（「は」「はは」「っは」「あは」「ふふ」「へへ」「ええ」…）。"""
+    u = unicodedata.normalize("NFKC", unit)
+    return bool(u) and all(c in VOCAL_CHARS for c in u)
+
+
+def _is_natural(unit: str) -> bool:
+    return unit in NATURAL_UNITS or (len(unit) == 4 and unit[:2] == unit[2:] and unit[:2] in NATURAL_UNITS) or is_backchannel(unit)
+
+
+def _classify_run(unit: str, r: int) -> str | None:
+    """反復の種類を先に決め、その種類ごとに確信度を決める。
+    非言語発声(笑い声) → NON_SPEECH（幻覚としては扱わない）／ 相槌・自然な言い回し → 簡単に不採用にしない／
+    語句・文の異常反復 → HIGH／MEDIUM。"""
     L = len(unit)
-    if L == 1:
-        if unit in LAUGH_CHARS:
-            return LOW if r >= 8 else None          # 笑い声・叫びは自然に起こり得る
-        return MEDIUM if r >= 8 else None
-    if unit in NATURAL_UNITS or (L == 4 and unit[:2] == unit[2:] and unit[:2] in NATURAL_UNITS):
+    if is_vocal(unit):
+        return NON_SPEECH if L * r >= 8 else None
+    if _is_natural(unit):
         return HIGH if r >= 12 else (MEDIUM if r >= 6 else None)  # 「はい」「そうそう」等は簡単に不採用にしない
+    if L == 1:
+        return MEDIUM if r >= 8 else None
     if r >= 6 and L * r >= 12:
+        return HIGH
+    if L >= 6 and r >= 5:                                         # 句・文の長さの単位が5回以上連続するのは自然な発話ではない
         return HIGH
     if r >= 4:
         return MEDIUM
     return None
 
 
+def _chains(turns: list[dict], max_gap: float, cap: int = CHAIN_CAP):
+    """時系列で近い（隙間 max_gap 秒以内）発言の連なり。反復検査専用のwindowで、transcript自体は結合しない。
+    4発言以上の連なりだけを返す（3発言以下は _windows が見る）。長い連なりは cap 発言ずつ（8発言重ねて）区切る。"""
+    n, i = len(turns), 0
+    while i < n:
+        j = i
+        while j + 1 < n and turn_gap(turns[j], turns[j + 1]) <= max_gap:
+            j += 1
+        if j - i + 1 > 3:
+            s = i
+            while True:
+                e = min(j, s + cap - 1)
+                yield list(range(s, e + 1))
+                if e == j:
+                    break
+                s = e - 7
+        i = j + 1
+
+
+def _make_loop(turns, loc, unit, r, chars, method, conf, ids_chain=None) -> "Finding":
+    text = "｜".join(turns[t]["raw_text"][a:b] for t, (a, b) in sorted(loc.items()))
+    spk = len({turns[t].get("speaker_id") for t in loc})
+    if conf == NON_SPEECH:
+        f = Finding(kind="laughter_repeat", confidence=NON_SPEECH, turn_ids=sorted(loc), text=text,
+                    reason=f"非言語の発声（笑い声など）「{unit}」の反復 {r} 回。幻覚ではない可能性が高いため削除していません")
+    else:
+        what = "語句・文" if len(unit) >= 5 else "短い語句"
+        f = Finding(kind="loop", confidence=conf, turn_ids=sorted(loc), text=text,
+                    reason=f"同じ{what}「{unit}」が {r} 回連続しています（不自然な反復" + ("・言い回しの揺れを含む" if method == "similar" else "")
+                    + ("・複数の発言／話者にまたがる" if len(loc) > 1 else "") + "）")
+    f.detail = {"unit": unit, "repeats": r, "chars": chars, "method": method, "speakers": spk, "loc": dict(loc)}
+    return f
+
+
+def _find_exact_loops(turns, ids, parts, sq, found, minimal: bool):
+    for m in re.finditer(r"(.{1,%d}?)\1{3,}" % LOOP_MAX_UNIT, sq):
+        unit, run = m.group(1), m.group(0)
+        r = len(run) // len(unit)
+        conf = _classify_run(unit, r)
+        if conf is None:
+            continue
+        loc = _locate(parts, m.start(), m.end())
+        if minimal and (ids[0] not in loc or ids[-1] not in loc):
+            continue
+        key = ("exact", tuple(sorted((t, a, b) for t, (a, b) in loc.items())))
+        if key in found:
+            continue
+        if conf == HIGH and len(unit) < 5 and r < 12:
+            raw_run = "".join(turns[t]["raw_text"][a:b] for t, (a, b) in sorted(loc.items()))
+            if re.search(r"[、，,。？！?!]", raw_run.rstrip("、，,。？！?!")):
+                conf = MEDIUM      # 句読点で区切られた短い語句の反復（「たまたま、たまたま、たまたま」）は話者の意図的な強調の可能性。削除しない
+        f = _make_loop(turns, loc, unit, r, len(run), "exact", conf)
+        if conf == HIGH:
+            f.action = "reject"
+            first = True
+            for t, (a, b) in sorted(loc.items()):  # 反復は1回分だけ残して畳む（原文は raw に残る）
+                f.ops[t] = (a, _extend_punct(turns[t]["raw_text"], b), unit if first else "")
+                first = False
+        found[key] = f
+
+
+def _sentences(turns, ids):
+    """各発言を文末（。？！）で分けた断片 (turn_id, 開始, 終了, 正規化文字列)。発言をまたいで結合しない。"""
+    out = []
+    for tid in ids:
+        raw = turns[tid]["raw_text"]
+        pos = 0
+        for m in re.finditer(r"[^。？！?!]+[。？！?!]*", raw):
+            sq = sq_map(m.group(0))[0]
+            if sq:
+                out.append((tid, m.start(), m.end(), sq))
+    return out
+
+
+def _find_similar_loops(turns, ids, found):
+    """言い回しが少し揺れた反復（編集距離・類似度）。短い断片(5字以下)は飛ばして、似た文が連続する回数を数える。"""
+    import difflib
+    sents = [x for x in _sentences(turns, ids) if len(x[3]) >= 6 and not is_vocal(x[3])]
+    i = 0
+    while i < len(sents):
+        j = i + 1
+        while j < len(sents) and difflib.SequenceMatcher(None, sents[i][3], sents[j][3]).ratio() >= SIM_THRESHOLD:
+            j += 1
+        r = j - i
+        if r >= 4:
+            unit = sents[i][3]
+            conf = _classify_run(unit, r)
+            if conf is not None and conf != NON_SPEECH:
+                loc: dict[int, tuple[int, int]] = {}
+                for tid, a, b, _ in sents[i:j]:
+                    lo, hi = loc.get(tid, (a, b))
+                    loc[tid] = (min(lo, a), max(hi, b))
+                key = ("similar", tuple(sorted((t, a, b) for t, (a, b) in loc.items())))
+                if key not in found:
+                    f = _make_loop(turns, loc, unit, r, sum(len(x[3]) for x in sents[i:j]), "similar", conf)
+                    if conf == HIGH:
+                        f.action = "reject"
+                        first_tid, first_b = sents[i][0], sents[i][2]
+                        for tid in sorted({x[0] for x in sents[i:j]}):   # 最初の1回だけ残して、似た繰り返しを畳む
+                            pieces = [x for x in sents[i:j] if x[0] == tid]
+                            a = first_b if tid == first_tid else pieces[0][1]
+                            b = pieces[-1][2]
+                            if a < b:
+                                f.ops[tid] = (a, b, "")
+                    found[key] = f
+        i = j if r >= 4 else i + 1
+
+
+def _dedupe_contained(findings: list["Finding"]) -> list["Finding"]:
+    """大きな反復の一部にすぎない finding（同じ事象を窓ごとに数えたもの）を除く。"""
+    def size(f):  # 同程度の大きさなら、正確な一致（exact）を優先する
+        return sum(b - a for a, b in f.detail["loc"].values()) + (3 if f.detail.get("method") == "exact" else 0)
+    order = sorted(range(len(findings)), key=lambda k: (-size(findings[k]), k))
+    kept: list[Finding] = []
+    for k in order:
+        f = findings[k]
+        loc = f.detail["loc"]
+        if any(all(t in g.detail["loc"] and g.detail["loc"][t][0] <= a + 2 and b <= g.detail["loc"][t][1] + 2
+                   for t, (a, b) in loc.items()) for g in kept):
+            continue
+        kept.append(f)
+    return sorted(kept, key=lambda f: (f.turn_ids[0], f.kind))
+
+
 def detect_loops(turns: list[dict], max_gap: float = 3.0) -> list[Finding]:
+    """反復（語句・文・笑い声）の検出。検査用の時系列window（連続する最大3発言／長い連なりは最大40発言）で行い、
+    句読点・？！・空白・改行・speaker境界・segment境界の違いは正規化して無視する（transcriptは結合しない）。
+    speakerをまたぐだけでは幻覚扱いしない（回数・長さ・種類で決める）。"""
     found: dict[tuple, Finding] = {}
     for ids in _windows(turns, max_gap):
         sq, parts = _concat(turns, ids)
-        for m in re.finditer(r"(.{1,%d}?)\1{3,}" % LOOP_MAX_UNIT, sq):
-            unit, run = m.group(1), m.group(0)
-            r = len(run) // len(unit)
-            conf = _classify_loop(unit, r)
-            if conf is None:
-                continue
-            loc = _locate(parts, m.start(), m.end())
-            if ids[0] not in loc or ids[-1] not in loc:
-                continue
-            key = tuple(sorted((t, a, b) for t, (a, b) in loc.items()))
-            if key in found:
-                continue
-            text = "｜".join(turns[t]["raw_text"][a:b] for t, (a, b) in sorted(loc.items()))
-            f = Finding(kind="loop", confidence=conf, turn_ids=sorted(loc), text=text,
-                        reason=f"同じ短い語句「{unit}」が {r} 回連続しています（不自然な反復）",
-                        detail={"unit": unit, "repeats": r, "chars": len(run)})
-            if conf == HIGH:
-                f.action = "reject"
-                first = True
-                for t, (a, b) in sorted(loc.items()):  # 反復は1回分だけ残して畳む（原文は raw に残る）
-                    f.ops[t] = (a, _extend_punct(turns[t]["raw_text"], b), unit if first else "")
-                    first = False
-            found[key] = f
-    return list(found.values())
+        _find_exact_loops(turns, ids, parts, sq, found, minimal=True)
+    for ids in _chains(turns, max_gap):
+        sq, parts = _concat(turns, ids)
+        _find_exact_loops(turns, ids, parts, sq, found, minimal=False)
+        _find_similar_loops(turns, ids, found)
+    for ids in _windows(turns, max_gap):
+        if len(ids) > 1:
+            _find_similar_loops(turns, ids, found)
+    return _dedupe_contained(list(found.values()))
 
 
 # ------------------------------------------------------------------ 2-3 音声末尾・長い無音直前の怪しい発話（要確認のみ）
@@ -256,12 +388,79 @@ def detect_boundary(turns: list[dict], max_gap: float = 1.0, short_chars: int = 
     return out
 
 
+# ------------------------------------------------------------------ 2-6 孤立した挨拶的定型句（文脈の重なりがあるときだけ要確認）
+ISOLATION_SEC = 5.0
+
+
+def detect_isolated_weak(turns: list[dict], audio_dur: float | None = None, skip_ids: set[int] | None = None) -> list[Finding]:
+    """「ありがとうございました」などは普通の実発話として非常に多いので、**文字列だけでは判定しない**。
+    発言の末尾にあるその句が、次の文脈の重なりを複数もつときだけ要確認にする（削除はしない）:
+      iso  : 直前の発話（同じ発言内の前の文字、または前の発言）から 5秒以上離れて孤立している
+      chunk: チャンク末尾／音声末尾
+      unk  : 話者が不明・不確実
+      lowlp: 認識信頼度が低い（avg_logprob < -0.5）
+      short: 句以外の文字が6字以下（極端に短い孤立断片）
+    iso か chunk のどちらかを含み、合計3つ以上で MEDIUM、2つで LOW。"""
+    skip_ids = set(skip_ids or ())
+    live = [i for i, t in enumerate(turns) if sq_map(t["raw_text"])[0]]
+    last = live[-1] if live else None
+    out = []
+    for i in live:
+        if i in skip_ids:
+            continue
+        t = turns[i]
+        sq, idx = sq_map(t["raw_text"])
+        hit = None
+        for phrase in WEAK_PHRASES:
+            if sq.endswith(phrase) and (hit is None or len(phrase) > len(hit)):
+                hit = phrase
+        if hit is None:
+            continue
+        a_raw = idx[len(sq) - len(hit)]
+        words = t.get("words") or []
+        gap = None
+        if words and "".join(w[0] for w in words) == t["raw_text"] and words[a_raw][1] is not None:
+            start_ph = words[a_raw][1]
+            prev_end = None
+            for w in words[:a_raw]:
+                if w[0].strip() and w[0] not in _PUNCT_END and w[2] is not None:
+                    prev_end = w[2]
+            if prev_end is not None:
+                gap = start_ph - prev_end
+            else:
+                k = live.index(i)
+                if k:
+                    gap = start_ph - turns[live[k - 1]].get("speech_end", turns[live[k - 1]]["end"])
+        sig = {}
+        sig["iso"] = gap is not None and gap >= ISOLATION_SEC
+        sig["chunk"] = bool(t.get("chunk_end")) or i == last
+        sig["unk"] = t.get("speaker_id") is None or bool(t.get("speaker_uncertain"))
+        lp = t.get("avg_logprob")
+        sig["lowlp"] = lp is not None and lp < -0.5
+        sig["short"] = len(sq) - len(hit) <= 6
+        n = sum(sig.values())
+        if not (sig["iso"] or sig["chunk"]) or n < 2:
+            continue
+        names = {"iso": f"直前の発話から{gap:.0f}秒離れて孤立" if gap is not None else "", "chunk": "チャンク末尾／音声末尾",
+                 "unk": "話者が不明・不確実", "lowlp": f"認識信頼度が低い（logprob {lp:.2f}）" if lp is not None else "",
+                 "short": "句以外の文字が6字以下"}
+        why = "、".join(names[k] for k, v in sig.items() if v)
+        end = t.get("speech_end", t["end"])
+        out.append(Finding("weak_phrase", MEDIUM if n >= 3 else LOW, [i],
+                           f"通常の発話でも言い得る挨拶「{hit}」ですが、次の文脈が重なっています: {why}。"
+                           "実際の発言の可能性もあるため削除していません", t["raw_text"],
+                           detail={"phrase": hit, "signals": [k for k, v in sig.items() if v], "gap_before": None if gap is None else round(gap, 1),
+                                   "start": t["start"], "duration": round(max(0.0, end - t["start"]), 1)}))
+    return out
+
+
 # ------------------------------------------------------------------ まとめ
 def detect(turns: list[dict], audio_dur: float | None = None, max_gap: float = 3.0) -> list[Finding]:
     phrases = detect_phrases(turns, max_gap)
     loops = detect_loops(turns, max_gap)
     tail = detect_tail(turns, audio_dur, skip_ids={t for f in phrases for t in f.turn_ids}, max_gap=max_gap)
-    return phrases + loops + tail + detect_boundary(turns)
+    weak = detect_isolated_weak(turns, audio_dur, skip_ids={t for f in phrases + tail for t in f.turn_ids})
+    return phrases + loops + tail + weak + detect_boundary(turns)
 
 
 def apply_rejections(turns: list[dict], findings: list[Finding], reject: bool = True) -> None:
@@ -349,3 +548,16 @@ def untranscribed_regions(turns: list[dict], diar: list[dict], min_sec: float, d
                "ratio": round(float(missing_union.sum() / max(speech_union.sum(), 1)), 3), "min_sec": min_sec,
                "regions": len(rows)}
     return rows, summary
+
+
+def count_events(findings: list[Finding], turns: list[dict], confidence: str, gap: float = 1.0) -> int:
+    """同じ出来事を窓ごとに重複して数えないための事象数（時間範囲が重なる／gap秒以内で隣接する finding を1つにまとめる）。"""
+    iv = sorted((turns[f.turn_ids[0]]["start"], turns[f.turn_ids[-1]]["end"]) for f in findings if f.confidence == confidence)
+    n, end = 0, None
+    for a, b in iv:
+        if end is None or a > end + gap:
+            n += 1
+            end = b
+        else:
+            end = max(end, b)
+    return n
