@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "critic-report.schema.json",
+  "title": "Publication critic report (generated from critic-*.md by `publication:critic --sync`)",
+  "type": "object",
+  "required": ["issue", "stages"],
+  "properties": {
+    "issue": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "stages": {
+      "type": "object",
+      "properties": {
+        "blind": { "$ref": "#/definitions/stage" },
+        "context": { "$ref": "#/definitions/stage" },
+        "rereview": { "$ref": "#/definitions/stage" }
+      }
+    }
+  },
+  "definitions": {
+    "stage": {
+      "type": "object",
+      "required": ["status", "findings"],
+      "properties": {
+        "status": { "enum": ["pending", "complete"] },
+        "reviewer": { "type": "string" },
+        "scores": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 5 } },
+        "emergent_fingerprint": { "type": "array", "items": { "type": "string" } },
+        "dispositions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "status"],
+            "properties": {
+              "id": { "type": "string" },
+              "status": { "enum": ["fixed", "open", "regressed", "wontfix"] },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "severity", "category", "title", "pages", "problem", "evidence", "fix"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^F-\\d{3}$" },
+              "severity": { "enum": ["BLOCKER", "HIGH", "MEDIUM", "LOW", "NOTE"] },
+              "category": { "type": "string" },
+              "title": { "type": "string" },
+              "pages": { "type": "array", "items": { "type": "integer" } },
+              "problem": { "type": "string", "minLength": 1 },
+              "evidence": { "type": "string", "minLength": 1 },
+              "fix": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

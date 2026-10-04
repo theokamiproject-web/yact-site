@@ -1,0 +1,29 @@
+{
+  "name": "yact-site",
+  "private": true,
+  "type": "module",
+  "description": "Y-ACT site + Publishing Studio (publishing-studio/)",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@vivliostyle/cli": "^11.3.3",
+    "ajv": "^8.20.0",
+    "js-yaml": "^5.4.2",
+    "marked": "^18.0.14",
+    "pdf-lib": "^1.17.1",
+    "playwright-core": "^1.63.0",
+    "sharp": "^0.35.5"
+  },
+  "scripts": {
+    "publication:new": "node publishing-studio/scripts/new-issue.mjs",
+    "publication:validate": "node publishing-studio/scripts/validate.mjs",
+    "publication:build": "node publishing-studio/scripts/build.mjs",
+    "publication:preview": "node publishing-studio/scripts/preview.mjs",
+    "publication:render": "node publishing-studio/scripts/render-pages.mjs",
+    "publication:critic": "node publishing-studio/scripts/critic-pack.mjs",
+    "publication:preflight": "node publishing-studio/scripts/preflight.mjs",
+    "publication:all": "node publishing-studio/scripts/all.mjs",
+    "publication:test": "node --test publishing-studio/tests/"
+  }
+}

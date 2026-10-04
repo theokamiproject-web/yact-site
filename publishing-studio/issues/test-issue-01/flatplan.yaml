@@ -1,0 +1,16 @@
+# 16p A5 中綴じ。見開き = (2,3) (4,5) ... (14,15)。1p=表1、16p=表4。
+pages:
+  - { pages: [1],     article: cover,            layout: cover,            variant: full,         visual_intensity: 5, text_density: 1, image_density: 5, notes: 表紙。夕暮れの港 }
+  - { pages: [2],     article: contents,         layout: contents,         variant: list,         visual_intensity: 2, text_density: 3, image_density: 1 }
+  - { pages: [3],     article: editors-note,     layout: column,           variant: box,          visual_intensity: 2, text_density: 3, image_density: 1, notes: 編集部より。読み始めの呼吸 }
+  - { pages: [4, 5],  article: harbor-theater,   layout: feature-opener,   variant: spread-bleed,  visual_intensity: 5, text_density: 2, image_density: 5, notes: 特集の見開きオープナー }
+  - { pages: [6],     article: harbor-theater,   layout: feature-body,     variant: two-col,       visual_intensity: 2, text_density: 5, image_density: 1 }
+  - { pages: [7],     article: harbor-theater,   layout: feature-body,     variant: two-col-image, visual_intensity: 3, text_density: 4, image_density: 3, slots: { image: stage-inline.jpg } }
+  - { pages: [8],     article: interview-hamabe, layout: interview-opener, variant: portrait-left, visual_intensity: 4, text_density: 3, image_density: 3 }
+  - { pages: [9],     article: interview-hamabe, layout: interview-body,   variant: qa,            visual_intensity: 2, text_density: 5, image_density: 1 }
+  - { pages: [10, 11], article: photo-tide,      layout: photo-essay,      variant: grid-3,       visual_intensity: 5, text_density: 1, image_density: 5, notes: 写真見開き。ページ間の静かな山場 }
+  - { pages: [12],    article: quote-lamp,       layout: quote-page,       variant: color-block,   visual_intensity: 4, text_density: 1, image_density: 1, notes: 一息つくページ }
+  - { pages: [13],    article: night-road,       layout: essay,            variant: opener,        visual_intensity: 2, text_density: 4, image_density: 1 }
+  - { pages: [14],    article: night-road,       layout: essay,            variant: end,           visual_intensity: 1, text_density: 4, image_density: 1 }
+  - { pages: [15],    article: colophon,         layout: colophon,         variant: with-credits,  visual_intensity: 1, text_density: 3, image_density: 1 }
+  - { pages: [16],    article: back-cover,       layout: cover,            variant: back,          visual_intensity: 3, text_density: 1, image_density: 1 }

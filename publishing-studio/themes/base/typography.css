@@ -1,0 +1,47 @@
+.page {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--color-ink);
+  line-break: strict;
+  word-break: normal;
+  overflow-wrap: break-word;
+  font-kerning: normal;
+  text-align: justify;
+  text-justify: inter-character;
+}
+.page h1, .page h2, .page h3, .page h4 { margin: 0; font-weight: 700; text-align: left; font-feature-settings: "palt"; text-wrap: balance; }
+.page h1 { font-family: var(--font-heading); font-size: var(--fs-h1); line-height: var(--lh-tight); letter-spacing: -0.01em; }
+.page h2 { font-family: var(--font-heading); font-size: var(--fs-h2); line-height: var(--lh-heading); }
+.page h3 { font-family: var(--font-heading); font-size: var(--fs-h3); line-height: var(--lh-heading); }
+.page p { margin: 0; }
+
+.kicker { font-family: var(--font-heading); font-size: var(--fs-small); font-weight: 700; letter-spacing: var(--tracking-label); color: var(--color-accent); text-align: left; }
+.deck { font-family: var(--font-heading); font-size: var(--fs-lead); line-height: 1.7; font-weight: 500; text-align: left; font-feature-settings: "palt"; }
+.byline { font-family: var(--font-heading); font-size: var(--fs-small); letter-spacing: 0.08em; text-align: left; color: var(--color-sub); }
+.byline b { color: var(--color-ink); font-weight: 700; }
+.lead { font-size: var(--fs-lead); line-height: calc(var(--baseline) * 1.4); text-align: left; }
+.label { font-family: var(--font-heading); font-size: var(--fs-small); font-weight: 700; letter-spacing: var(--tracking-label); text-align: left; }
+.num { font-family: var(--font-heading); font-feature-settings: "tnum"; }
+.on-dark { color: var(--color-on-dark); }
+.on-dark .kicker { color: var(--color-on-dark); opacity: 0.85; }
+.on-dark .byline { color: var(--color-on-dark); opacity: 0.8; }
+
+.body p { text-indent: 1em; }
+.body p:first-child, .body p.cont, .body h3 + p, .body p.noindent { text-indent: 0; }
+.body h3 { margin: var(--space-1) 0; }
+.body blockquote { margin: var(--space-1) 0; padding-left: 3mm; border-left: var(--rule-bold) solid var(--color-accent); font-family: var(--font-heading); }
+.body ul { margin: 0; padding-left: 1.2em; }
+
+.caption { font-family: var(--font-heading); font-size: var(--fs-caption); line-height: 1.6; color: var(--color-sub); text-align: left; text-justify: auto; }
+.caption .credit { display: block; letter-spacing: 0.04em; opacity: 0.85; }
+.on-dark .caption { color: var(--color-on-dark); opacity: 0.85; }
+
+.pullquote { font-family: var(--font-heading); font-size: 14pt; font-weight: 700; line-height: 1.6; text-align: left; font-feature-settings: "palt"; color: var(--color-accent); }
+.pullquote::before { content: "「"; margin-left: -0.5em; }
+.pullquote::after { content: "」"; }
+
+.q { font-family: var(--font-heading); font-weight: 700; font-size: var(--fs-small); line-height: calc(var(--baseline) * 0.9); margin-top: var(--space-1); text-align: left; text-indent: 0 !important; padding-left: 1.6em; position: relative; }
+.q .qm { position: absolute; left: 0; color: var(--color-accent); }
+.a { text-indent: 0 !important; margin-bottom: 0; }
+.a + .a { text-indent: 1em !important; }

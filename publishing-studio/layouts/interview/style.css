@@ -1,0 +1,19 @@
+.iv-portrait { position: absolute; top: calc(var(--bleed) * -1); left: calc(var(--bleed) * -1); width: calc(var(--page-w) * 0.5 + var(--bleed)); height: calc(104mm + var(--bleed)); overflow: hidden; z-index: -1; }
+.iv-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.iv-o.live { height: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom)); grid-template-rows: 90mm auto auto 1fr; row-gap: 0; }
+.iv-side { grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; }
+.iv-who { font-family: var(--font-heading); text-align: left; margin-top: var(--space-1); line-height: 1.6; }
+.iv-who b { display: block; font-size: 11pt; }
+.iv-who span { font-size: var(--fs-small); color: var(--color-sub); }
+.iv-title { font-size: 21pt; line-height: 1.45; grid-row: 2; padding-top: var(--space-1); border-top: var(--rule-bold) solid var(--color-accent); }
+.iv-deck { grid-row: 3; margin-top: 1mm; }
+.iv-text { grid-row: 4; margin-top: var(--space-1); min-height: 0; }
+.iv-bq .iv-title { margin-top: var(--space-1); }
+.iv-title-xl { font-size: 28pt; margin-bottom: var(--space-2); }
+.iv-bq.live { grid-template-rows: auto auto auto 1fr; }
+.iv-bq .iv-text { grid-row: auto; max-height: 88mm; }
+.iv-thumb { aspect-ratio: 1; margin-top: -6mm; }
+.iv-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.ib.live { height: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom)); grid-template-rows: 1fr; }
+.ib-rows { grid-template-rows: auto 1fr; row-gap: var(--space-1); }
+.ib .ib-text { height: 100%; min-height: 0; }

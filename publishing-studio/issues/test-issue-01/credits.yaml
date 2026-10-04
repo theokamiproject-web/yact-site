@@ -1,0 +1,17 @@
+credits:
+  - role: 編集
+    names: [汐田 結]
+  - role: 執筆
+    names: [汐田 結, 浜辺 健三, 小波 凪]
+  - role: 写真
+    names: [サンプル画像（SVG生成）]
+  - role: デザイン
+    names: [Publishing Studio v0.1]
+colophon:
+  published: 2026年10月4日
+  publisher: 潮見町文化交流室（架空）
+  editor: 汐田 結
+  printer: テスト印刷所（架空）
+  contact: example@example.invalid
+  price: 非売品（テスト号）
+  copyright: © 2026 TEST ISSUE 01. 本誌に登場する人物・団体・地名はすべて架空です。

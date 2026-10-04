@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "issue.schema.json",
+  "title": "Issue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "issue_number", "theme", "format", "width", "height", "pages", "binding", "bleed", "language"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "subtitle": { "type": "string" },
+    "issue_number": { "type": ["string", "integer"] },
+    "date": { "type": "string" },
+    "publisher": { "type": "string" },
+    "theme": { "type": "string", "minLength": 1, "description": "themes/<name>. base is always loaded first." },
+    "theme_overrides": {
+      "type": "object",
+      "description": "CSS custom property overrides, e.g. {\"--color-accent\": \"#c8452d\"}",
+      "propertyNames": { "pattern": "^--[a-z0-9-]+$" },
+      "additionalProperties": { "type": "string" }
+    },
+    "format": { "enum": ["A4", "A5", "A6", "B5", "B6", "custom"] },
+    "width": { "type": "number", "exclusiveMinimum": 0, "description": "trim width in mm" },
+    "height": { "type": "number", "exclusiveMinimum": 0, "description": "trim height in mm" },
+    "pages": { "type": "integer", "minimum": 2, "description": "total pages including cover and back cover" },
+    "binding": { "enum": ["saddle-stitch", "perfect", "none"] },
+    "bleed": { "type": "number", "minimum": 0, "maximum": 10, "description": "mm" },
+    "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "running_header": { "type": "string", "description": "text for running header; defaults to title" }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "flatplan.schema.json",
+  "title": "Flatplan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pages"],
+  "properties": {
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pages", "article", "layout"],
+        "properties": {
+          "pages": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 1, "maxItems": 2, "description": "[n] for a page, [n, n+1] for a spread" },
+          "article": { "type": "string" },
+          "layout": { "type": "string" },
+          "variant": { "type": "string" },
+          "visual_intensity": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "text_density": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "image_density": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "notes": { "type": "string" },
+          "intentional_blank": { "type": "boolean" },
+          "slots": { "type": "object", "description": "per-placement component inputs (hero_image, images, pull_quote ...)" }
+        }
+      }
+    }
+  }
+}

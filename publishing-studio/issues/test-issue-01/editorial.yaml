@@ -1,0 +1,15 @@
+concept: 小さな港町で毎年続く朗読劇を通して、「見に行く」から「一緒につくる」へ変わっていく町の時間を記録する。
+audience: 地域の文化活動に関心のある30〜60代。舞台の経験は問わない。
+editorial_voice: 静かで具体的。誇張せず、場所と人の手の動きを描く。
+mood: 夕暮れ、潮の匂い、木の床、手書きの看板
+pacing: varied
+density: medium
+keywords: [港町, 朗読劇, 倉庫, 夕暮れ, 手仕事]
+fingerprint_target:
+  max_same_layout_run: 2
+  max_consecutive_image_heavy: 3
+  min_intensity_range: 40
+  max_opener_repeat: 3
+  min_quiet_pages: 1
+  motif: 茜色の短い罫線と小さな四角（終わりの印）
+  typography: 明朝の本文と太めのゴシック見出しの対比

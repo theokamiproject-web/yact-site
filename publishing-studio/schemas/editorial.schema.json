@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "editorial.schema.json",
+  "title": "Editorial",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["concept", "audience", "editorial_voice", "mood", "pacing", "density", "keywords"],
+  "properties": {
+    "concept": { "type": "string", "minLength": 1 },
+    "audience": { "type": "string", "minLength": 1 },
+    "editorial_voice": { "type": "string", "minLength": 1 },
+    "mood": { "type": "string", "minLength": 1 },
+    "pacing": { "enum": ["slow", "steady", "fast", "varied"] },
+    "density": { "enum": ["low", "medium", "high"] },
+    "keywords": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "fingerprint_target": {
+      "type": "object",
+      "description": "Fingerprint Control: intended, machine-checkable targets. Missing keys use defaults.",
+      "additionalProperties": false,
+      "properties": {
+        "max_same_layout_run": { "type": "integer", "minimum": 1 },
+        "max_consecutive_image_heavy": { "type": "integer", "minimum": 1 },
+        "min_intensity_range": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "max_opener_repeat": { "type": "integer", "minimum": 1 },
+        "min_quiet_pages": { "type": "integer", "minimum": 0 },
+        "motif": { "type": "string", "description": "intended motif, judged visually" },
+        "typography": { "type": "string", "description": "intended typographic character, judged visually" }
+      }
+    }
+  }
+}

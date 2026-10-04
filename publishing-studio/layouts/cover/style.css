@@ -1,0 +1,22 @@
+.cv-live { top: var(--margin-top); bottom: var(--margin-bottom); grid-template-rows: auto 1fr auto; }
+.page[data-layout="cover"] .live { left: var(--margin-outer); right: var(--margin-outer); }
+.cv-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: var(--fs-small); letter-spacing: var(--tracking-label); }
+.cv-title { font-family: var(--font-display); font-size: var(--fs-display); line-height: 1.12; font-weight: 900; letter-spacing: 0.02em; margin-top: var(--space-3); }
+.cv-sub { font-family: var(--font-heading); font-size: var(--fs-lead); letter-spacing: 0.1em; margin-top: var(--space-2); text-align: left; }
+.cv-shade { z-index: -1; background: linear-gradient(to bottom, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%); }
+.cv-foot { align-self: end; }
+.cv-lines { list-style: none; margin: 0; padding: 0; font-family: var(--font-heading); font-weight: 700; font-size: 9.5pt; line-height: 1.9; text-align: left; }
+.cv-lines li::before { content: ""; display: inline-block; width: 4mm; height: var(--rule-bold); background: var(--color-accent); vertical-align: middle; margin-right: 2.5mm; }
+.cv-typo .cv-title { color: var(--color-accent); font-size: 66pt; }
+.cv-small { grid-column: 3 / -1; aspect-ratio: 4 / 5; margin-top: var(--space-3); }
+.cv-small img { width: 100%; height: 100%; object-fit: cover; }
+.cv-split-img { position: absolute; left: calc(var(--bleed) * -1); right: calc(var(--bleed) * -1); top: calc(var(--bleed) * -1); height: calc(var(--page-h) * 0.58 + var(--bleed)); overflow: hidden; z-index: -1; }
+.cv-split-img img { width: 100%; height: 100%; object-fit: cover; }
+.cv-split.live { top: calc(var(--page-h) * 0.58 + var(--space-2)); }
+.cv-split { grid-template-rows: auto auto 1fr; }
+.cv-split .cv-meta { display: none; }
+.cv-split .cv-title { font-size: 40pt; margin-top: 0; color: var(--color-accent); }
+.cv-back { align-content: center; top: 0; bottom: 0; }
+.cv-back-title { font-family: var(--font-display); font-weight: 900; font-size: 20pt; letter-spacing: 0.06em; text-align: left; }
+.cv-back-line { font-family: var(--font-heading); font-size: var(--fs-small); margin-top: var(--space-1); text-align: left; letter-spacing: 0.1em; }
+.cv-back-pub { position: absolute; bottom: var(--margin-bottom); left: 0; font-family: var(--font-heading); font-size: var(--fs-caption); letter-spacing: 0.15em; text-align: left; }

@@ -1,0 +1,8 @@
+# Photo Editor metadata (optional). role: hero | portrait | inline | transition | sequence | decorative
+cover-harbor.jpg: { role: hero, orientation: portrait, focal: [0.6, 0.55], alt: 夕暮れの港, note: 表紙候補。空の上部に余白があり、タイトルが載る }
+harbor-hero.jpg: { role: hero, orientation: landscape, focal: [0.62, 0.5], alt: 夕暮れの潮見港, note: 見開き用。中央ノド付近に主要被写体を置かない }
+stage-inline.jpg: { role: inline, orientation: landscape, focal: [0.5, 0.5], alt: ランタンが並ぶ倉庫の客席 }
+portrait-hamabe.jpg: { role: portrait, orientation: portrait, focal: [0.5, 0.35], alt: 座長のポートレート }
+tide-1.jpg: { role: sequence, orientation: portrait, focal: [0.5, 0.5], alt: 朝の港 }
+tide-2.jpg: { role: sequence, orientation: landscape, focal: [0.5, 0.5], alt: 夕方の桟橋 }
+tide-3.jpg: { role: sequence, orientation: landscape, focal: [0.5, 0.5], alt: 夜の倉庫 }
