@@ -1,4 +1,4 @@
-import { esc, body, byline, when, frameChars, liveBox } from '../_shared.mjs';
+import { esc, body, byline, when } from '../_shared.mjs';
 
 export default {
   family: 'essay',
@@ -9,7 +9,7 @@ export default {
       required: (v) => (v === 'opener' ? ['title'] : []),
       optional: ['kicker', 'deck', 'author'],
       captions: false,
-      text: { capacity: (v, i) => { const b = liveBox(i); const w = ((b.w - 5 * 4) / 6) * 5 + 16; return frameChars({ w, h: v === 'opener' ? b.h - 48 : b.h - (v === 'end' ? 6 : 0) }); } },
+      text: true,
       render({ inputs: i, variant, text }) {
         const endMark = variant === 'end' ? '<span class="end-mark"></span>' : '';
         const txt = `<div class="es-text fit">${body(text)}${endMark}</div>`;

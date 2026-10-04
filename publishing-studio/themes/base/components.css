@@ -1,8 +1,8 @@
 /* shared building blocks used by several layout families */
 .fig { margin: 0; }
 .fig img { display: block; width: 100%; object-fit: cover; }
-.fig .caption { margin-top: 1.2mm; }
+.fig .caption { margin-top: var(--space-0); }
 .rule-top { border-top: var(--rule-bold) solid var(--color-rule); padding-top: var(--space-1); }
 .rule-thin { border-top: var(--rule-thin) solid var(--color-rule); }
 .tint-box { background: var(--color-tint); padding: var(--space-2); }
-.end-mark { display: inline-block; width: 2.2mm; height: 2.2mm; background: var(--color-accent); margin-left: 1.2mm; vertical-align: baseline; }
+.end-mark { display: inline-block; width: var(--mark); height: var(--mark); background: var(--color-accent); margin-left: var(--space-0); vertical-align: baseline; }

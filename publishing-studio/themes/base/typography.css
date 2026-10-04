@@ -30,14 +30,14 @@
 .body p { text-indent: 1em; }
 .body p:first-child, .body p.cont, .body h3 + p, .body p.noindent { text-indent: 0; }
 .body h3 { margin: var(--space-1) 0; }
-.body blockquote { margin: var(--space-1) 0; padding-left: 3mm; border-left: var(--rule-bold) solid var(--color-accent); font-family: var(--font-heading); }
+.body blockquote { margin: var(--space-1) 0; padding-left: var(--space-1); border-left: var(--rule-bold) solid var(--color-accent); font-family: var(--font-heading); }
 .body ul { margin: 0; padding-left: 1.2em; }
 
 .caption { font-family: var(--font-heading); font-size: var(--fs-caption); line-height: 1.6; color: var(--color-sub); text-align: left; text-justify: auto; }
 .caption .credit { display: block; letter-spacing: 0.04em; opacity: 0.85; }
 .on-dark .caption { color: var(--color-on-dark); opacity: 0.85; }
 
-.pullquote { font-family: var(--font-heading); font-size: 14pt; font-weight: 700; line-height: 1.6; text-align: left; font-feature-settings: "palt"; color: var(--color-accent); }
+.pullquote { font-family: var(--font-heading); font-size: calc(14pt * var(--type-scale)); font-weight: 700; line-height: 1.6; text-align: left; font-feature-settings: "palt"; color: var(--color-accent); }
 .pullquote::before { content: "「"; margin-left: -0.5em; }
 .pullquote::after { content: "」"; }
 

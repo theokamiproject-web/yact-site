@@ -1,4 +1,4 @@
-import { esc, img, fig, captionHtml, body, when, frameChars, liveBox } from '../_shared.mjs';
+import { esc, img, fig, captionHtml, body, when } from '../_shared.mjs';
 
 const who = (i) => `<p class="iv-who"><b>${esc(i.interviewee ?? '')}</b>${i.interviewee_role ? `<span>${esc(i.interviewee_role)}</span>` : ''}</p>`;
 
@@ -11,7 +11,7 @@ export default {
       required: (v) => (v === 'portrait-left' ? ['title', 'portrait', 'interviewee'] : ['title', 'interviewee']),
       optional: ['kicker', 'deck', 'portrait', 'interviewee_role', 'author'],
       captions: true,
-      text: { capacity: (v, i) => frameChars({ w: liveBox(i).w, h: v === 'portrait-left' ? 58 : 88 }) },
+      text: true,
       render({ inputs: i, variant, text, model }) {
         if (variant === 'portrait-left') {
           return [{ chrome: 'folio', html: `<div class="iv-portrait">${img(model, i.portrait)}</div>
@@ -28,10 +28,10 @@ export default {
       required: (v) => (v === 'qa-portrait' ? ['image'] : []),
       optional: ['image'],
       captions: true,
-      text: { capacity: (v, i) => { const b = liveBox(i); return frameChars({ w: b.w, h: v === 'qa' ? b.h : b.h - 62, cols: 2 }); } },
+      text: true,
       render({ inputs: i, variant, text, model }) {
         if (variant === 'qa') return [{ html: `<div class="live ib"><div class="ib-text c-all fit cols-2">${body(text)}</div></div>` }];
-        return [{ html: `<div class="live ib ib-rows"><div class="c-1-3">${fig(model, i.image, { imgStyle: 'height:52mm' })}</div><div class="ib-text c-all fit cols-2">${body(text)}</div></div>` }];
+        return [{ html: `<div class="live ib ib-rows"><div class="c-1-3">${fig(model, i.image, { imgStyle: 'height:var(--qa-img-h)' })}</div><div class="ib-text c-all fit cols-2">${body(text)}</div></div>` }];
       },
     },
   },

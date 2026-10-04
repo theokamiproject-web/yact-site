@@ -13,7 +13,7 @@ export function workspace() {
   const issues = path.join(root, 'issues');
   const output = path.join(root, 'output');
   fs.mkdirSync(output, { recursive: true });
-  for (const d of ['_template', 'test-issue-01']) fs.cpSync(path.join(PS, 'issues', d), path.join(issues, d), { recursive: true });
+  for (const d of ['_template', 'test-issue-01', 'test-issue-02']) fs.cpSync(path.join(PS, 'issues', d), path.join(issues, d), { recursive: true });
   fs.rmSync(path.join(issues, 'test-issue-01/reviews'), { recursive: true, force: true });
   const env = { ...process.env, PS_ISSUES_DIR: issues, PS_OUTPUT_DIR: output };
   const run = (name, ...args) => spawnSync(process.execPath, [script(name), ...args], { env, encoding: 'utf8', timeout: 170000 });

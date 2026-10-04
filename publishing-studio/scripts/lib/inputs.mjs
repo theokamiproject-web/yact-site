@@ -1,5 +1,5 @@
 // Turn (model, flatplan entry) into component inputs; text allocation; helper queries.
-import { allocate } from './text.mjs';
+import { allocate, frameLines } from './text.mjs';
 import { variantPages } from './registry.mjs';
 
 export const CONTENT_TYPES = ['feature', 'interview', 'essay', 'photo-essay', 'column', 'profile'];
@@ -53,8 +53,15 @@ export function entriesOf(model) {
   return [...(model.flatplan?.pages ?? [])].sort((a, b) => a.pages[0] - b.pages[0]);
 }
 
-/** Sequentially allocate each article's body blocks across its text-capable entries. */
-export function planText(model, registry) {
+/** Characters a measured frame holds (for reports). */
+export const frameChars = (f) => frameLines(f).capacityChars;
+
+/**
+ * Sequentially allocate each article's body blocks across its text-capable entries.
+ * `frames` (page -> measured frame, from the layout probe) is required for allocation; without it only the structural
+ * answer (which articles have no text layout) is returned.
+ */
+export function planText(model, registry, frames) {
   const plan = new Map(); // entry -> {blocks, fill, capacity}
   const byArticle = new Map();
   for (const e of entriesOf(model)) {
@@ -71,12 +78,10 @@ export function planText(model, registry) {
       if (art.blocks.length) unplaced.push(id);
       continue;
     }
-    const caps = entries.map((e) => {
-      const c = registry.components[e.layout];
-      return c.text.capacity(e.variant ?? c.defaultVariant, buildInputs(model, e));
-    });
-    const { pages, estimatedFill } = allocate(art.blocks, caps);
-    entries.forEach((e, i) => plan.set(e, { blocks: pages[i], fill: estimatedFill[i], capacity: caps[i] }));
+    if (!frames) continue;
+    const fr = entries.map((e) => frames.get(e.pages[0]) ?? { w: 0, h: 0, cols: 1, gap: 0, fs: 1, lh: 1 });
+    const { pages, estimatedFill } = allocate(art.blocks, fr);
+    entries.forEach((e, i) => plan.set(e, { blocks: pages[i], fill: estimatedFill[i], capacity: frameChars(fr[i]) }));
   }
   return { plan, unplacedText: unplaced };
 }

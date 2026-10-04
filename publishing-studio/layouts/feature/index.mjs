@@ -1,4 +1,4 @@
-import { esc, img, fig, captionHtml, body, byline, when, has, frameChars, liveBox } from '../_shared.mjs';
+import { esc, img, fig, captionHtml, body, byline, when, has } from '../_shared.mjs';
 
 const head = (i, cls = '') => `${when(i.kicker, `<p class="kicker">${esc(i.kicker)}</p>`)}<h1 class="fo-title ${cls}">${esc(i.title)}</h1>${when(i.deck, `<p class="deck fo-deck">${esc(i.deck)}</p>`)}`;
 
@@ -35,11 +35,11 @@ export default {
       required: (v) => (v === 'two-col-image' ? ['image'] : v === 'pullquote' ? ['pull_quote'] : []),
       optional: ['image', 'pull_quote'],
       captions: true,
-      text: { capacity: (v, i) => { const b = liveBox(i); return frameChars({ w: b.w, h: { 'two-col': b.h, 'two-col-image': b.h - 77, pullquote: b.h - 36 }[v], cols: 2 }); } },
+      text: true,
       render({ inputs: i, variant, text, model }) {
         if (variant === 'two-col') return [{ html: `<div class="live fb"><div class="fb-text c-all fit cols-2">${body(text)}</div></div>` }];
         if (variant === 'two-col-image') {
-          return [{ html: `<div class="live fb fb-img-rows"><div class="c-all">${fig(model, i.image, { imgStyle: 'height:62mm' })}</div><div class="fb-text c-all fit cols-2">${body(text)}</div></div>` }];
+          return [{ html: `<div class="live fb fb-img-rows"><div class="c-all">${fig(model, i.image, { imgStyle: 'height:var(--inline-img-h)' })}</div><div class="fb-text c-all fit cols-2">${body(text)}</div></div>` }];
         }
         return [{ html: `<div class="live fb fb-pq-rows"><p class="pullquote c-all fb-pq">${esc(i.pull_quote)}</p><div class="fb-text c-all fit cols-2">${body(text)}</div></div>` }];
       },

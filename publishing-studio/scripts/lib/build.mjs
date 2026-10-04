@@ -9,7 +9,9 @@ import { loadIssue } from './load.mjs';
 import { validateModel, hasErrors } from './validate-model.mjs';
 import { loadRegistry } from './registry.mjs';
 import { compose } from './compose.mjs';
-import { resolveTheme, pageSetupCss } from './theme.mjs';
+import { planText } from './inputs.mjs';
+import { writeWeb } from './web.mjs';
+import { probeLayout } from './layout-probe.mjs';
 import { findChromium, sandboxPolicy } from './browser.mjs';
 import { issueBoundary } from './boundary.mjs';
 
@@ -43,26 +45,23 @@ export async function buildWeb(id, { marks = false, log = console.log, allowPubl
   const bnd = issueBoundary(model.dir, { allowPublicTree });
   for (const f of bnd.findings) log(`  ${bnd.overridden ? 'OVERRIDDEN' : 'ERROR'} ${f.code}: ${f.message}`);
   if (!bnd.ok) throw new Error('publishing boundary violation (private source would be public); see above');
-  const findings = await validateModel(model);
-  for (const f of findings.filter((x) => x.level === 'error')) log(`  ERROR ${f.code}: ${f.message}${f.where ? ` (${f.where})` : ''}`);
-  if (hasErrors(findings)) throw new Error('validation failed; fix the errors above (npm run publication:validate -- ' + id + ')');
-
+  const fail = (findings) => {
+    for (const f of findings.filter((x) => x.level === 'error')) log(`  ERROR ${f.code}: ${f.message}${f.where ? ` (${f.where})` : ''}`);
+    if (hasErrors(findings)) throw new Error('validation failed; fix the errors above (npm run publication:validate -- ' + id + ')');
+  };
+  fail(await validateModel(model));
+  // pass A: measure the book without body text; pass B: allocate body text into the measured frames
+  const probe = await probeLayout(model);
+  const findings = await validateModel(model, { probe });
+  fail(findings);
   const reg = await loadRegistry();
-  const { html, pages, toc } = await compose(model);
+  const { plan } = planText(model, reg, probe.frames);
+  const composed = await compose(model, { plan });
   const out = outDir(id);
   const web = path.join(out, 'web');
-  fs.rmSync(web, { recursive: true, force: true });
-  fs.mkdirSync(path.join(web, 'css'), { recursive: true });
-  fs.mkdirSync(path.join(web, 'images'), { recursive: true });
-
-  const theme = resolveTheme(model);
-  fs.writeFileSync(path.join(web, 'css/theme.css'), theme.map((t) => `/* ==== ${t.source} ==== */\n${t.css}`).join('\n\n'));
-  fs.writeFileSync(path.join(web, 'css/layouts.css'), reg.styles.map((s) => `/* ==== layouts/${s.family} ==== */\n${s.css}`).join('\n\n'));
-  fs.writeFileSync(path.join(web, 'css/page-setup.css'), pageSetupCss(model.issue, { marks }));
-  for (const [f, src] of Object.entries(model.images)) fs.copyFileSync(src, path.join(web, 'images', f));
-  fs.writeFileSync(path.join(web, 'index.html'), html);
-  fs.writeFileSync(path.join(web, 'pages.json'), JSON.stringify({ issue: model.issue, pages, toc }, null, 2));
-  return { model, web, pages, findings, boundary_override: bnd.overridden };
+  await writeWeb(model, composed, web, { marks });
+  fs.rmSync(path.join(out, '.probe'), { recursive: true, force: true });
+  return { model, web, pages: composed.pages, findings, boundary_override: bnd.overridden };
 }
 
 function run(cmd, args, { cwd, log }) {

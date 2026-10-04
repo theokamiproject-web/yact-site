@@ -19,7 +19,7 @@ export function captionHtml(model, file, cls = '') {
   if (!c?.caption) return '';
   return `<p class="caption ${cls}" data-caption-for="${esc(file)}">${esc(c.caption)}${c.credit ? `<span class="credit">${esc(c.credit)}</span>` : ''}</p>`;
 }
-/** <figure> with image + caption. `imgStyle` e.g. "height:60mm". */
+/** <figure> with image + caption. `imgStyle` e.g. "height:var(--inline-img-h)". */
 export function fig(model, file, { cls = '', imgStyle = '', caption = true } = {}) {
   if (!file) return '';
   return `<figure class="fig ${cls}">${img(model, file, '', imgStyle)}${caption ? captionHtml(model, file) : ''}</figure>`;
@@ -41,13 +41,3 @@ export const body = (blocks, cls = '') => `<div class="body ${cls}">${blocksHtml
 export const byline = (i) => when(has(i.author), `<p class="byline">${i.source ? `${esc(i.source)}　` : ''}文 <b>${esc(i.author)}</b>${i.author_role ? `　${esc(i.author_role)}` : ''}</p>`);
 
 
-/**
- * Estimated characters that fit a text frame (full-width Japanese, 8.5pt on a 5.5mm baseline, base-theme margins).
- * Estimate only: the authoritative check is the DOM overflow/fill measurement (render + preflight).
- * w,h in mm; pass `i` (component inputs) so page size is honoured.
- */
-export function frameChars({ w, h, cols = 1, gap = 4, fs = 8.5, lh = 5.5, eff = 1 }) {
-  const cw = (w - (cols - 1) * gap) / cols;
-  return Math.floor(cols * Math.floor(cw / (fs * 0.3528)) * Math.floor(h / lh) * eff);
-}
-export const liveBox = (i, { top = 16, bottom = 18, inner = 17, outer = 13 } = {}) => ({ w: (i.issue?.width ?? 148) - inner - outer, h: (i.issue?.height ?? 210) - top - bottom });

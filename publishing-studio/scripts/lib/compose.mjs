@@ -1,11 +1,11 @@
 // Compose the Publication Model into one HTML book (one <section.page> per page) + page manifest.
 import { loadRegistry, variantPages } from './registry.mjs';
-import { buildInputs, entriesOf, planText, tocEntries } from './inputs.mjs';
+import { buildInputs, entriesOf, tocEntries } from './inputs.mjs';
 import { esc } from '../../layouts/_shared.mjs';
 
-export async function compose(model) {
+/** plan: Map(entry -> {blocks}) from planText; an empty Map composes the book without body text (layout probe). */
+export async function compose(model, { plan = new Map() } = {}) {
   const reg = await loadRegistry();
-  const { plan } = planText(model, reg);
   const toc = tocEntries(model);
   const issue = model.issue;
   const pages = [];

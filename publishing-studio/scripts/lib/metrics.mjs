@@ -118,12 +118,15 @@ export async function collectMetrics(browser, webDir, issue) {
 
       // overflow / clipping
       const overflow = [];
-      const fills = [];
+      // text frames (.fit): measured geometry, so capacity never depends on constants duplicated in JS
+      const frames = [];
+      let textLines = 0;
       for (const el of pg.querySelectorAll('.fit')) {
         const cs = getComputedStyle(el);
         const cc = parseInt(cs.columnCount, 10) || 1;
-        const auto = el.classList.contains('fit-auto'); // content-sized frame: fill is trivially 1
+        const auto = el.classList.contains('fit-auto'); // content-sized frame bounded by max-height
         const er = el.getBoundingClientRect();
+        const maxH = cs.maxHeight !== 'none' ? parseFloat(cs.maxHeight) : null;
         let lines = 0;
         const w2 = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
         for (let n = w2.nextNode(); n; n = w2.nextNode()) {
@@ -132,10 +135,19 @@ export async function collectMetrics(browser, webDir, issue) {
           range.selectNodeContents(n);
           lines += [...range.getClientRects()].filter((r) => r.width > 0).length;
         }
-        const baseline = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--baseline')) || 5.5;
-        if (!auto) fills.push(+((lines * baseline * k) / (er.height * cc)).toFixed(2));
+        const gapPx = cs.columnGap === 'normal' ? 0 : parseFloat(cs.columnGap) || 0;
+        const frame = { w: er.width / k, h: (auto && maxH ? maxH : er.height) / k, cols: cc, gap: gapPx / k, fs: parseFloat(cs.fontSize) / k, lh: parseFloat(cs.lineHeight) / k, auto, lines };
+        frame.occupancy = frame.h > 0 ? +((lines * frame.lh) / (frame.h * cc)).toFixed(3) : null;
+        frames.push(frame);
+        textLines += lines;
       }
-      m.fit_fill = fills.length ? Math.max(...fills) : null;
+      m.fit_frames = frames.map((f) => ({ ...f, w: +f.w.toFixed(2), h: +f.h.toFixed(2), gap: +f.gap.toFixed(2), fs: +f.fs.toFixed(3), lh: +f.lh.toFixed(3) }));
+      m.text_lines = textLines;
+      m.text_occupancy = frames.length ? Math.max(...frames.map((f) => f.occupancy ?? 0)) : null;
+      m.fit_fill = m.text_occupancy; // deprecated alias, removed with the metrics redesign
+      // table of contents capacity (rows that fit inside the live area)
+      const tocItems = [...pg.querySelectorAll('.toc-item')];
+      m.toc_items = tocItems.length ? { total: tocItems.length, fitting: tocItems.filter((el) => (el.getBoundingClientRect().bottom - pr.top) / k <= heightMm - safeMm).length } : null;
       for (const el of pg.querySelectorAll('.fit')) {
         if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
           overflow.push({ el: el.className, kind: 'content-clipped', scroll: [el.scrollWidth, el.scrollHeight], client: [el.clientWidth, el.clientHeight] });

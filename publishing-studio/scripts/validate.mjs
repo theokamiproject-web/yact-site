@@ -11,7 +11,15 @@ if (!id) {
   process.exit(2);
 }
 const model = loadIssue(id);
-const findings = await validateModel(model);
+let findings = await validateModel(model);
+if (!hasErrors(findings)) {
+  try {
+    const { probeLayout } = await import('./lib/layout-probe.mjs');
+    findings = await validateModel(model, { probe: await probeLayout(model) });
+  } catch (e) {
+    findings.push({ level: 'warning', code: 'LAYOUT_PROBE_SKIPPED', message: `layout/text-volume checks skipped: ${e.message.split('\n')[0]}` });
+  }
+}
 const bnd = issueBoundary(model.dir, { allowPublicTree: overrideRequested(flags) });
 for (const f of bnd.findings) findings.unshift({ level: bnd.overridden ? 'warning' : 'error', code: bnd.overridden ? `${f.code}_OVERRIDDEN` : f.code, message: f.message, where: 'publishing boundary' });
 if (flags.json) {

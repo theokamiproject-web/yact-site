@@ -1,10 +1,10 @@
 .toc-head { border-top: var(--rule-bold) solid var(--color-rule); padding-top: var(--space-1); margin-bottom: var(--space-3); }
-.toc-head h1 { font-size: 22pt; margin-top: 1mm; }
+.toc-head h1 { font-size: calc(22pt * var(--type-scale)); margin-top: var(--space-0); }
 .toc-list { list-style: none; margin: 0; padding: 0; }
-.toc-item { display: grid; grid-template-columns: 16mm 1fr; column-gap: var(--gutter); padding: var(--space-1) 0; border-top: var(--rule-thin) solid var(--color-rule); }
-.toc-p { font-size: 20pt; font-weight: 700; line-height: 1.1; color: var(--color-accent); }
-.toc-t h2 { font-size: 12pt; line-height: 1.5; }
+.toc-item { display: grid; grid-template-columns: var(--num-col) 1fr; column-gap: var(--gutter); padding: var(--space-1) 0; border-top: var(--rule-thin) solid var(--color-rule); }
+.toc-p { font-size: calc(20pt * var(--type-scale)); font-weight: 700; line-height: 1.1; color: var(--color-accent); }
+.toc-t h2 { font-size: calc(12pt * var(--type-scale)); line-height: 1.5; }
 .toc-d { font-family: var(--font-heading); font-size: var(--fs-small); color: var(--color-sub); text-align: left; line-height: 1.7; }
 .toc-large .toc-item { padding: var(--space-2) 0; }
-.toc-large .toc-p { font-size: 34pt; }
-.toc-large .toc-t h2 { font-size: 15pt; }
+.toc-large .toc-p { font-size: calc(34pt * var(--type-scale)); }
+.toc-large .toc-t h2 { font-size: calc(15pt * var(--type-scale)); }

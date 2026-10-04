@@ -1,15 +1,15 @@
-.cl.live { height: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom)); }
-.cl-title { font-size: 17pt; margin: 1mm 0 var(--space-1); }
+.cl.live { height: var(--content-h); }
+.cl-title { font-size: var(--fs-h2); margin: var(--space-0) 0 var(--space-1); }
 .cl-box { padding: var(--space-2) var(--space-2); }
 .cl-grid { display: grid; row-gap: var(--space-1); }
-.cl-text { max-height: 118mm; }
-.cl-plain .cl-text { max-height: 140mm; }
+.cl-text { max-height: var(--column-box-max-h); }
+.cl-plain .cl-text { max-height: var(--column-plain-max-h); }
 .cl-plain { row-gap: var(--space-1); }
 .pf.live { row-gap: var(--space-1); }
-.pf-name h2 { font-size: 16pt; }
-.pf-name .deck { font-size: 9.5pt; margin-top: 1mm; }
-.pf-text { max-height: 70mm; }
+.pf-name h2 { font-size: calc(16pt * var(--type-scale)); }
+.pf-name .deck { font-size: calc(9.5pt * var(--type-scale)); margin-top: var(--space-0); }
+.pf-text { max-height: var(--profile-text-max-h); }
 .pf-facts { margin: var(--space-1) 0 0; font-family: var(--font-heading); font-size: var(--fs-small); border-top: var(--rule-thin) solid var(--color-rule); }
-.pf-row { display: grid; grid-template-columns: 22mm 1fr; padding: 1.2mm 0; border-bottom: var(--rule-thin) solid var(--color-rule); }
+.pf-row { display: grid; grid-template-columns: var(--fact-col) 1fr; padding: var(--space-0) 0; border-bottom: var(--rule-thin) solid var(--color-rule); }
 .pf-row dt { font-weight: 700; color: var(--color-sub); }
 .pf-row dd { margin: 0; }

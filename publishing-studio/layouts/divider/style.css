@@ -1,4 +1,4 @@
 .dv.live { align-content: center; row-gap: var(--space-2); top: 0; bottom: 0; }
-.dv-title { font-family: var(--font-display); font-size: 40pt; font-weight: 900; letter-spacing: 0.04em; }
+.dv-title { font-family: var(--font-display); font-size: calc(40pt * var(--type-scale)); font-weight: 900; letter-spacing: 0.04em; }
 .dv .label { color: var(--color-accent); }
 .page[data-bg="accent"] .dv .label, .page[data-bg="ink"] .dv .label { color: var(--color-on-dark); opacity: .8; }

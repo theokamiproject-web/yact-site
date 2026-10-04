@@ -1,42 +1,89 @@
-/* Design System tokens — base theme. Override per issue via issue.yaml `theme_overrides` or issues/<id>/theme.css */
+/*
+ * Design System tokens — base theme.
+ *
+ * Three families, kept apart on purpose:
+ *   1. PHYSICAL  — fixed in real units on every page size (bleed, hairlines, minimum text size, marks).
+ *   2. PAGE-RELATIVE — geometry expressed as a fraction of the page (margins, gutter, hero/opener regions, image areas, whitespace).
+ *   3. TYPOGRAPHY-DERIVED — type sizes and leading scale with --type-scale (generated from issue.yaml); measure, column count and
+ *      body capacity are derived from these, never typed in.
+ * Components may only use tokens from these families — no millimetre literals in layouts/*.css (a test enforces this).
+ * Override per issue via issue.yaml `theme_overrides` or issues/<id>/theme.css.
+ */
 :root {
-  /* page (authoritative values are injected from issue.yaml by build -> css/page-setup.css) */
+  /* generated from issue.yaml into css/page-setup.css (authoritative); defaults are A5 */
   --page-w: 148mm;
   --page-h: 210mm;
   --bleed: 3mm;
+  --type-scale: 1;
 
-  /* margins & grid */
-  --margin-top: 16mm;
-  --margin-bottom: 18mm;
-  --margin-inner: 17mm;   /* gutter side (binding) */
-  --margin-outer: 13mm;
+  /* ---------- 1. PHYSICAL ---------- */
+  --rule-thin: 0.25mm;
+  --rule-bold: 0.9mm;
+  --safe: 5mm;                 /* text stays this far from the trim edge */
+  --min-text: 7pt;             /* nothing printed smaller than this */
+  --mark: 2.2mm;               /* end mark */
+
+  /* ---------- 2. PAGE-RELATIVE ---------- */
+  --margin-top: calc(var(--page-h) * 0.0762);
+  --margin-bottom: calc(var(--page-h) * 0.0857);
+  --margin-inner: calc(var(--page-w) * 0.1149);   /* binding side */
+  --margin-outer: calc(var(--page-w) * 0.0878);
   --columns: 6;
-  --gutter: 4mm;
-  --baseline: 5.5mm;      /* body leading; vertical rhythm unit */
-  --safe: 5mm;            /* text should stay this far from the trim edge */
+  --gutter: calc(var(--page-w) * 0.027);
+  --content-w: calc(var(--page-w) - var(--margin-inner) - var(--margin-outer));
+  --content-h: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom));
+  --col-w: calc((var(--content-w) - (var(--columns) - 1) * var(--gutter)) / var(--columns));
+  --folio-offset: calc(var(--page-h) * 0.0429);
+  --runhead-offset: calc(var(--page-h) * 0.0405);
+  /* composition regions (fractions of the page / of the content box) */
+  --opener-hero-h: calc(var(--page-h) * 0.5333);
+  --opener-cap-top: calc(var(--page-h) * 0.5405);
+  --opener-body-top: calc(var(--page-h) * 0.6);
+  --spread-hero-h: calc(var(--page-h) * 0.6571);
+  --spread-body-top: calc(var(--page-h) * 0.6952);
+  --portrait-w: calc(var(--page-w) * 0.5);
+  --portrait-h: calc(var(--page-h) * 0.4952);
+  --interview-head-h: calc(var(--page-h) * 0.4286);
+  --wide-top: calc(var(--page-h) * 0.2286);
+  --wide-h: calc(var(--page-h) * 0.5238);
+  --wide-cap-top: calc(var(--page-h) * 0.7714);
+  --inline-img-h: calc(var(--content-h) * 0.3523);
+  --qa-img-h: calc(var(--content-h) * 0.2955);
+  --seq-tall-h: calc(var(--content-h) * 0.5);
+  --seq-sq-h: calc(var(--content-h) * 0.2955);
+  --column-img-h: calc(var(--content-h) * 0.25);
+  --profile-img-h: calc(var(--content-h) * 0.3523);
+  --profile-img-wide-h: calc(var(--content-h) * 0.3977);
+  --column-box-max-h: calc(var(--content-h) * 0.67);
+  --column-plain-max-h: calc(var(--content-h) * 0.795);
+  --profile-text-max-h: calc(var(--content-h) * 0.3977);
+  --quote-text-max-h: calc(var(--content-h) * 0.5);
+  --num-col: calc(var(--page-w) * 0.1081);        /* contents page-number column */
+  --label-col: calc(var(--page-w) * 0.1622);      /* colophon label column */
+  --fact-col: calc(var(--page-w) * 0.1486);       /* profile fact label column */
 
-  /* fonts */
+  /* ---------- 3. TYPOGRAPHY-DERIVED ---------- */
   --font-body: "Noto Serif CJK JP", "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
   --font-heading: "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
   --font-display: "Noto Serif CJK JP", "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
-
-  /* type scale */
-  --fs-folio: 6.5pt;
-  --fs-runhead: 6.5pt;
-  --fs-caption: 6.5pt;
-  --fs-small: 7.5pt;
-  --fs-body: 8.5pt;
-  --fs-lead: 10.5pt;
-  --fs-h3: 10pt;
-  --fs-h2: 17pt;
-  --fs-h1: 30pt;
-  --fs-display: 56pt;
+  --baseline: calc(5.5mm * var(--type-scale));    /* body leading = vertical rhythm unit */
+  --fs-folio: max(var(--min-text), calc(6.5pt * var(--type-scale)));
+  --fs-runhead: max(var(--min-text), calc(6.5pt * var(--type-scale)));
+  --fs-caption: max(var(--min-text), calc(6.5pt * var(--type-scale)));
+  --fs-small: calc(7.5pt * var(--type-scale));
+  --fs-body: calc(8.5pt * var(--type-scale));
+  --fs-lead: calc(10.5pt * var(--type-scale));
+  --fs-h3: calc(10pt * var(--type-scale));
+  --fs-h2: calc(17pt * var(--type-scale));
+  --fs-h1: calc(30pt * var(--type-scale));
+  --fs-display: calc(56pt * var(--type-scale));
   --lh-tight: 1.25;
   --lh-heading: 1.4;
   --lh-body: var(--baseline);
   --tracking-label: 0.18em;
 
   /* spacing scale (multiples of baseline) */
+  --space-0: calc(var(--baseline) * 0.2);
   --space-1: calc(var(--baseline) * 0.5);
   --space-2: var(--baseline);
   --space-3: calc(var(--baseline) * 2);
@@ -53,12 +100,4 @@
   --color-tint: #efe9dc;
   --color-on-dark: #fbfaf6;
   --color-rule: var(--color-ink);
-
-  /* borders */
-  --rule-thin: 0.25mm;
-  --rule-bold: 0.9mm;
-
-  /* chrome */
-  --folio-offset: 9mm;      /* from the bottom trim edge */
-  --runhead-offset: 8.5mm;  /* from the top trim edge */
 }

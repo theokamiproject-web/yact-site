@@ -34,7 +34,7 @@ test('every component x variant renders the contracted number of pages and respe
       }
       const req = c.required(v);
       assert.ok(Array.isArray(req), `${label}: required() must return an array`);
-      if (c.text) assert.ok(c.text.capacity(v, inputs) > 100, `${label}: text capacity`);
+      if (c.text) assert.equal(c.text, true, `${label}: text contract is declared (frames are measured, not guessed)`);
     }
     assert.ok(c.variants[c.defaultVariant], `${c.name}: defaultVariant`);
   }

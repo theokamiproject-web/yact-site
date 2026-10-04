@@ -46,52 +46,70 @@ export function parseBlocks(body) {
   return blocks;
 }
 
-// cost of a block beyond its characters, in chars-of-line-capacity (half a line lost per paragraph, headings add spacing)
-const OVERHEAD = { p: 10, h: 40, q: 14, a: 10, quote: 30, list: 20 };
-export const blockCost = (b) => charLen(b.md) + (OVERHEAD[b.type] ?? 20);
+/** Lines available in a measured frame, and characters per line. Columns flow continuously; one line of slack per column. */
+export function frameLines(f) {
+  const colW = (f.w - (f.cols - 1) * f.gap) / f.cols;
+  const perLine = Math.max(1, Math.floor(colW / f.fs));
+  const perCol = Math.floor(f.h / f.lh);
+  return { perLine, lines: Math.max(0, f.cols * perCol - (f.cols > 1 ? f.cols - 1 : 0)), capacityChars: Math.max(0, f.cols * perCol * perLine) };
+}
 
+/** Lines a block occupies when set in `perLine` characters per line (first-line indent of 1em on plain paragraphs). */
+export function blockLines(b, perLine) {
+  const n = charLen(b.md);
+  switch (b.type) {
+    case 'h': return Math.ceil(n / perLine) + 1; // heading + its spacing (one baseline)
+    case 'q': return Math.ceil((n + 2) / Math.max(1, perLine - 2)) + 0.5; // hanging "Q" label + space above
+    case 'a': return Math.ceil(n / perLine);
+    case 'quote': return Math.ceil(n / Math.max(1, perLine - 2)) + 1;
+    case 'list': return Math.ceil(n / perLine) + 1;
+    default: return Math.ceil((n + (b.cont ? 0 : 1)) / perLine);
+  }
+}
+
+/** Plain-paragraph sentence split (Japanese full stops, ! ?). */
 function splitSentences(md) {
   return md.match(/[^。！？!?]+[。！？!?」』）)]*|[^。！？!?]+$/g) || [md];
 }
 
 /**
- * Allocate blocks to pages. caps = capacity (chars) per page. The last page takes the remainder.
- * A plain paragraph may be split at a sentence boundary; the continuation is flagged `cont`.
- * Returns {pages: Block[][], estimatedFill: number[]}
+ * Allocate blocks to pages. `frames` = measured frame per page (see layout probe). The last page takes the remainder.
+ * A plain paragraph may be split at a sentence boundary; the continuation is flagged `cont`. A question never ends a page
+ * without its answer. Returns {pages: Block[][], estimatedFill: number[] (used lines / frame lines), leftover}.
  */
-export function allocate(blocks, caps) {
+export function allocate(blocks, frames) {
   const queue = blocks.map((b) => ({ ...b }));
   const pages = [];
   const fill = [];
-  caps.forEach((cap, i) => {
+  frames.forEach((f, i) => {
+    const { perLine, lines } = frameLines(f);
     const out = [];
     let used = 0;
-    const last = i === caps.length - 1;
+    const last = i === frames.length - 1;
     while (queue.length) {
       const b = queue[0];
-      // never strand a question at the foot of a page: it travels with its answer
-      const cost = blockCost(b);
-      const needed = cost + (b.type === 'q' && queue[1]?.type === 'a' ? blockCost(queue[1]) : 0);
-      if (last || used + needed <= cap) {
+      const need = blockLines(b, perLine);
+      const needWithAnswer = need + (b.type === 'q' && queue[1]?.type === 'a' ? blockLines(queue[1], perLine) : 0);
+      if (last || used + needWithAnswer <= lines) {
         out.push(queue.shift());
-        used += cost;
+        used += need;
         continue;
       }
-      if (b.type === 'p' && cap - used >= 90) {
+      if (b.type === 'p' && lines - used >= 3) {
         const sents = splitSentences(b.md);
         let take = '';
         let k = 0;
-        while (k < sents.length && used + charLen(take + sents[k]) + OVERHEAD.p <= cap) take += sents[k++];
+        while (k < sents.length && used + blockLines({ ...b, md: take + sents[k] }, perLine) <= lines) take += sents[k++];
         if (take && k < sents.length) {
           out.push({ ...b, md: take.trim() });
           queue[0] = { ...b, md: sents.slice(k).join('').trim(), cont: true };
-          used += charLen(take) + OVERHEAD.p;
+          used += blockLines({ ...b, md: take }, perLine);
         }
       }
       break;
     }
     pages.push(out);
-    fill.push(used / cap);
+    fill.push(lines ? used / lines : 0);
   });
   return { pages, estimatedFill: fill, leftover: queue };
 }

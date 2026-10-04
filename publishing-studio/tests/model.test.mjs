@@ -72,11 +72,29 @@ test('missing caption is a warning at validate time', async () => {
   assert.ok(f.some((x) => x.code === 'MISSING_CAPTION' && x.level === 'warning'));
 });
 
-test('text volume: overlong body -> TEXT_MAY_OVERFLOW; no text layout -> TEXT_NOT_PLACED', async () => {
-  const f = await validateModel(mutate((m) => { m.articles['editors-note'].blocks = Array.from({ length: 30 }, () => ({ type: 'p', md: 'あ'.repeat(120) })); }));
-  assert.ok(f.some((x) => x.code === 'TEXT_MAY_OVERFLOW'));
+const frame = (o = {}) => ({ w: 96, h: 118, cols: 1, gap: 0, fs: 3, lh: 5.5, ...o });
+test('text volume uses MEASURED frames: overlong body -> TEXT_MAY_OVERFLOW; no frames => text checks skipped', async () => {
+  const m = mutate((m) => { m.articles['editors-note'].blocks = Array.from({ length: 30 }, () => ({ type: 'p', md: 'あ'.repeat(120) })); });
+  const probe = { frames: new Map([[3, frame()]]), metrics: [] };
+  assert.ok((await validateModel(m, { probe })).some((x) => x.code === 'TEXT_MAY_OVERFLOW'));
+  assert.ok(!(await validateModel(m)).some((x) => x.code === 'TEXT_MAY_OVERFLOW'), 'without a probe there is nothing to measure against');
+});
+
+test('TEXT_NOT_PLACED: article with body text but no text layout', async () => {
   const c = await codes(mutate((m) => { for (const e of m.flatplan.pages.filter((x) => x.article === 'night-road')) { e.layout = 'divider'; e.variant = 'ink'; } }));
   assert.ok(c.includes('TEXT_NOT_PLACED'));
+});
+
+test('CONTENTS_OVERFLOW / LAYOUT_OVERFLOW are errors, raised from the measured layout probe', async () => {
+  const mk = (extra) => ({ n: 2, layout: 'contents', variant: 'list', overflow: [], outside: [], toc_items: null, ...extra });
+  const f1 = await validateModel(base, { probe: { frames: new Map(), metrics: [mk({ toc_items: { total: 12, fitting: 8 } })] } });
+  const e1 = f1.find((x) => x.code === 'CONTENTS_OVERFLOW');
+  assert.equal(e1.level, 'error');
+  assert.match(e1.message, /12 entries but only 8 fit/);
+  const f2 = await validateModel(base, { probe: { frames: new Map(), metrics: [mk({ outside: [{ kind: 'text-outside-trim' }] })] } });
+  assert.equal(f2.find((x) => x.code === 'LAYOUT_OVERFLOW').level, 'error');
+  const ok = await validateModel(base, { probe: { frames: new Map(), metrics: [mk({ toc_items: { total: 5, fitting: 5 } })] } });
+  assert.ok(!ok.some((x) => x.level === 'error'));
 });
 
 test('loader reports YAML errors without throwing', () => {

@@ -25,9 +25,17 @@ export function resolveTheme(model) {
   return parts;
 }
 
+/**
+ * Type scale derived from the trim width (A5 148mm = 1.00). Square-root growth keeps measure (characters per line)
+ * comfortable on larger pages without making type huge; never below 0.92 so body text stays >= 7.8pt.
+ */
+export function typeScale(widthMm) {
+  return Math.max(0.92, Math.round(Math.sqrt(widthMm / 148) * 100) / 100);
+}
+
 export function pageSetupCss(issue, { marks }) {
   return `/* generated from issue.yaml — do not edit */
-:root { --page-w: ${issue.width}mm; --page-h: ${issue.height}mm; --bleed: ${issue.bleed}mm; }
+:root { --page-w: ${issue.width}mm; --page-h: ${issue.height}mm; --bleed: ${issue.bleed}mm; --type-scale: ${typeScale(issue.width)}; }
 @page {
   size: ${issue.width}mm ${issue.height}mm;
   margin: 0;

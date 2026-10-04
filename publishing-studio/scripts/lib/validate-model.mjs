@@ -7,7 +7,8 @@ import { buildInputs, entriesOf, imageRefs, isEmpty, planText, pagesOf } from '.
 export const FORMATS = { A4: [210, 297], A5: [148, 210], A6: [105, 148], B5: [182, 257], B6: [128, 182] };
 
 /** @returns {Promise<{level:'error'|'warning'|'info', code:string, message:string, where?:string}[]>} */
-export async function validateModel(model) {
+/** probe: result of probeLayout (measured frames + overflow with no body text). Without it, layout/text-volume checks are skipped. */
+export async function validateModel(model, { probe } = {}) {
   const out = [];
   const add = (level, code, message, where) => out.push({ level, code, message, ...(where ? { where } : {}) });
   for (const e of model.loadErrors) add('error', e.code, e.message, e.file);
@@ -103,13 +104,19 @@ export async function validateModel(model) {
   for (const f of Object.keys(model.images)) if (!usedImages.has(f)) add('info', 'IMAGE_UNUSED', `image "${f}" is not used by any page`, 'images/');
 
   // --- text allocation estimate (authoritative overflow check is the DOM check in render/preflight)
-  const { plan, unplacedText } = planText(model, reg);
+  const { plan, unplacedText } = planText(model, reg, probe?.frames);
   for (const id of unplacedText) add('error', 'TEXT_NOT_PLACED', `article "${id}" has body text but no text-capable layout in the flatplan`, model.articles[id].file);
   for (const [e, p] of plan) {
     const where = `flatplan p${e.pages.join('-')}`;
-    if (p.fill > 1.05) add('warning', 'TEXT_MAY_OVERFLOW', `body text on p${e.pages.join('-')} is estimated at ${Math.round(p.fill * 100)}% of its frame`, where);
+    if (p.fill > 1.05) add('warning', 'TEXT_MAY_OVERFLOW', `body text on p${e.pages.join('-')} is estimated at ${Math.round(p.fill * 100)}% of its (measured) frame`, where);
     else if (!p.blocks.length) add('warning', 'TEXT_PAGE_EMPTY', `p${e.pages.join('-')} (${e.layout}) is a text layout but receives no body text; shorten the plan or add copy`, where);
     else if (p.fill < 0.35) add('warning', 'TEXT_PAGE_SPARSE', `body text on p${e.pages.join('-')} fills only ~${Math.round(p.fill * 100)}% of its frame`, where);
+  }
+  // structural overflow: the page already overflows WITHOUT body text (very long headline/caption, too many contents entries)
+  for (const m of probe?.metrics ?? []) {
+    const where = `p${m.n} ${m.layout}/${m.variant}`;
+    if (m.toc_items && m.toc_items.fitting < m.toc_items.total) add('error', 'CONTENTS_OVERFLOW', `contents lists ${m.toc_items.total} entries but only ${m.toc_items.fitting} fit on this page (${m.layout}/${m.variant}). Use a more compact variant, set in_contents: false on minor articles, or shorten titles. Entries beyond ${m.toc_items.fitting} would be lost.`, where);
+    else if (m.overflow.length || m.outside.length) add('error', 'LAYOUT_OVERFLOW', `content already overflows the page with no body text (long headline, deck or caption?): ${[...m.overflow.map((o) => `${o.el} clipped`), ...[...new Set(m.outside.map((o) => o.kind))]].join(', ')}`, where);
   }
   return out;
 }

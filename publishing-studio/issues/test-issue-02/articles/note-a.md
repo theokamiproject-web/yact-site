@@ -8,6 +8,7 @@ kicker: NOTE
 type: column
 author: 架空 太郎
 section: メモ
+in_contents: false
 ---
 路地は、地図に載らない近道。
 

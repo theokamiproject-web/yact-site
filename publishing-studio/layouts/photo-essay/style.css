@@ -1,22 +1,22 @@
 .pe-bleed-l { position: absolute; top: calc(var(--bleed) * -1); bottom: calc(var(--bleed) * -1); left: calc(var(--bleed) * -1); right: var(--margin-inner); overflow: hidden; z-index: -1; }
 .pe-bleed-l img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pe-capl { position: absolute; bottom: var(--margin-bottom); right: 2mm; width: calc(var(--margin-inner) - 4mm); }
+.pe-capl { position: absolute; bottom: var(--margin-bottom); right: calc(var(--margin-inner) * 0.12); width: calc(var(--margin-inner) * 0.76); }
 .pe-capl .caption { writing-mode: vertical-rl; font-size: var(--fs-caption); }
-.pe-r.live { grid-template-rows: auto 1fr 1fr; row-gap: var(--space-2); height: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom)); }
+.pe-r.live { grid-template-rows: auto 1fr 1fr; row-gap: var(--space-2); height: var(--content-h); }
 .pe-r .pe-r1, .pe-r .pe-r2 { min-height: 0; }
 .pe-fig { height: 100%; display: flex; flex-direction: column; }
 .pe-fig img { flex: 1; min-height: 0; width: 100%; object-fit: cover; }
-.pe-head h2 { font-size: 17pt; margin-top: 1mm; }
+.pe-head h2 { font-size: var(--fs-h2); margin-top: var(--space-0); }
 .pe-head { margin-bottom: var(--space-1); }
-.pe-seq.live { height: calc(var(--page-h) - var(--margin-top) - var(--margin-bottom)); grid-template-rows: auto auto; row-gap: var(--space-2); }
-.pe-seq .pe-tall img { height: 88mm; }
-.pe-seq .pe-sq img { height: 52mm; }
-.pe-wide { position: absolute; top: 48mm; left: calc(var(--bleed) * -1); width: calc(var(--page-w) + var(--bleed)); height: 110mm; overflow: hidden; z-index: -1; }
-.pe-wide-r { position: absolute; top: 48mm; left: 0; width: calc(var(--page-w) + var(--bleed)); height: 110mm; overflow: hidden; z-index: -1; }
+.pe-seq.live { height: var(--content-h); grid-template-rows: auto auto; row-gap: var(--space-2); }
+.pe-seq .pe-tall img { height: var(--seq-tall-h); }
+.pe-seq .pe-sq img { height: var(--seq-sq-h); }
+.pe-wide { position: absolute; top: var(--wide-top); left: calc(var(--bleed) * -1); width: calc(var(--page-w) + var(--bleed)); height: var(--wide-h); overflow: hidden; z-index: -1; }
+.pe-wide-r { position: absolute; top: var(--wide-top); left: 0; width: calc(var(--page-w) + var(--bleed)); height: var(--wide-h); overflow: hidden; z-index: -1; }
 .pe-wide img, .pe-wide-r img { position: absolute; top: 0; height: 100%; width: calc(var(--page-w) * 2 + var(--bleed) * 2); max-width: none; object-fit: cover; }
 .pe-wide img { left: 0; }
 .pe-wide-r img { left: calc((var(--page-w) + var(--bleed)) * -1); }
-.pe-widecap.live { top: 162mm; }
+.pe-widecap.live { top: var(--wide-cap-top); }
 .pe-wide-head.live { top: var(--margin-top); }
 
 .fp-sp { position: absolute; top: calc(var(--bleed) * -1); bottom: calc(var(--bleed) * -1); overflow: hidden; z-index: -1; }
@@ -25,5 +25,5 @@
 .fp-sp-l img { left: 0; }
 .fp-sp-r { left: 0; width: calc(var(--page-w) + var(--bleed)); }
 .fp-sp-r img { left: calc((var(--page-w) + var(--bleed)) * -1); }
-.fp-cap { position: absolute; bottom: calc(var(--folio-offset) + 5mm); left: var(--margin-outer); right: var(--margin-outer); }
+.fp-cap { position: absolute; bottom: calc(var(--folio-offset) + var(--baseline)); left: var(--margin-outer); right: var(--margin-outer); }
 .page[data-side="right"] .fp-cap { left: var(--margin-inner); }

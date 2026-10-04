@@ -28,14 +28,23 @@ round: 1
 ## Auto findings (scripts / mechanical — do not edit between markers)
 
 <!-- AUTO:BEGIN -->
-generated: 2026-10-04T04:26:35.696Z
+generated: 2026-10-04T14:38:01.732Z
 
-- A-001 [LOW] page-balance p20: 本文枠の充填率が低い (25%) — fit_fill<0.35 (自動計測)
-- A-002 [HIGH] page-balance p2: 要素が仕上がり線の外にはみ出している — text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim
+- A-001 [LOW] page-balance p3: 本文枠の充填率が低い (7%) — fit_fill<0.35 (自動計測)
+- A-002 [LOW] page-balance p10: 本文枠の充填率が低い (7%) — fit_fill<0.35 (自動計測)
+- A-003 [LOW] page-balance p14: 本文枠の充填率が低い (9%) — fit_fill<0.35 (自動計測)
+- A-004 [LOW] page-balance p17: 本文枠の充填率が低い (7%) — fit_fill<0.35 (自動計測)
+- A-005 [LOW] page-balance p20: 本文枠の充填率が低い (23%) — fit_fill<0.35 (自動計測)
+- A-006 [LOW] page-balance p22: 本文枠の充填率が低い (4%) — fit_fill<0.35 (自動計測)
 
 ### diff vs snapshot (first pack)
-- STILL A-001 [LOW] 本文枠の充填率が低い (25%)
-- STILL A-002 [HIGH] 要素が仕上がり線の外にはみ出している
+- RESOLVED A-002 要素が仕上がり線の外にはみ出している
+- NEW A-001 [LOW] 本文枠の充填率が低い (7%)
+- NEW A-002 [LOW] 本文枠の充填率が低い (7%)
+- NEW A-003 [LOW] 本文枠の充填率が低い (9%)
+- NEW A-004 [LOW] 本文枠の充填率が低い (7%)
+- NEW A-006 [LOW] 本文枠の充填率が低い (4%)
+- STILL A-005 [LOW] 本文枠の充填率が低い (23%)
 <!-- AUTO:END -->
 
 ## Findings

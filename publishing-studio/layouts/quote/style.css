@@ -1,9 +1,9 @@
 .qp.live { top: 0; bottom: 0; align-content: center; }
-.qp-text { grid-column: 1 / -1; margin: 0; font-family: var(--font-display); font-weight: 900; font-size: 24pt; line-height: 1.7; text-align: left; font-feature-settings: "palt"; text-wrap: balance; }
+.qp-text { grid-column: 1 / -1; margin: 0; font-family: var(--font-display); font-weight: 900; font-size: calc(24pt * var(--type-scale)); line-height: 1.7; text-align: left; font-feature-settings: "palt"; text-wrap: balance; }
 .qp-text::before { content: "「"; }
 .qp-text::after { content: "」"; }
 .qp-who { grid-column: 1 / -1; margin-top: var(--space-2); font-family: var(--font-heading); font-size: var(--fs-small); letter-spacing: 0.12em; text-align: left; }
-.qp-c .qp-text { text-align: center; font-size: 22pt; }
+.qp-c .qp-text { text-align: center; font-size: calc(22pt * var(--type-scale)); }
 .qp-c .qp-who { text-align: center; }
-.qp-lr .qp-text { border-left: var(--rule-bold) solid var(--color-accent); padding-left: 6mm; color: var(--color-ink); }
-.qp-cb .qp-text { font-size: 26pt; }
+.qp-lr .qp-text { border-left: var(--rule-bold) solid var(--color-accent); padding-left: var(--space-2); color: var(--color-ink); }
+.qp-cb .qp-text { font-size: calc(26pt * var(--type-scale)); }
