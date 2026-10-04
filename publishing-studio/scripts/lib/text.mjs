@@ -1,12 +1,35 @@
 // Article body -> blocks, and sequential allocation of blocks to pages by character budget.
-import { marked } from 'marked';
+import { Marked } from 'marked';
+
+/**
+ * Manuscript Markdown is UNTRUSTED input. Allowed output elements: p h3 strong em del code br ul ol li blockquote.
+ * Raw HTML is escaped and shown as text, images are dropped (use the images/ folder + assets), links print as plain text.
+ * Nothing in a manuscript can emit script, style, iframe, object, embed, event-handler attributes or a URL.
+ */
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const safeMarked = new Marked({
+  renderer: {
+    html: ({ text }) => escapeHtml(text),
+    image: () => '',
+    link(token) { return this.parser.parseInline(token.tokens); },
+  },
+});
+export const ALLOWED_ELEMENTS = ['p', 'h3', 'strong', 'em', 'del', 'code', 'br', 'ul', 'ol', 'li', 'blockquote'];
+
+/** What a manuscript contains that the sanitiser will neutralise (for validation messages). */
+export function scanMarkdown(body) {
+  const found = { html: 0, images: 0, links: 0 };
+  const walk = (tokens) => { for (const t of tokens ?? []) { if (t.type === 'html') found.html++; if (t.type === 'image') found.images++; if (t.type === 'link') found.links++; walk(t.tokens); walk(t.items); } };
+  walk(safeMarked.lexer(body || ''));
+  return found;
+}
 
 const strip = (s) => s.replace(/[*_`~]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
 export const charLen = (s) => [...strip(s)].length;
 
 /** Parse markdown body into blocks: {type: p|h|q|a|quote|list, md} */
 export function parseBlocks(body) {
-  const tokens = marked.lexer(body || '');
+  const tokens = safeMarked.lexer(body || '');
   const blocks = [];
   for (const t of tokens) {
     if (t.type === 'space') continue;
@@ -73,4 +96,5 @@ export function allocate(blocks, caps) {
   return { pages, estimatedFill: fill, leftover: queue };
 }
 
-export const inline = (md) => marked.parseInline(md ?? '');
+export const inline = (md) => safeMarked.parseInline(md ?? '');
+export const renderBlock = (md) => safeMarked.parse(md ?? '');

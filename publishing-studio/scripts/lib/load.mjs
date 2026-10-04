@@ -37,6 +37,7 @@ export function loadIssue(id) {
     model.images = {};
     model.captions = {};
     model.imageMeta = {};
+    model.themeCss = '';
     return model;
   }
   model.issue = readYaml(path.join(dir, 'issue.yaml'), loadErrors);
@@ -72,7 +73,7 @@ export function loadIssue(id) {
   if (fs.existsSync(cdir)) {
     for (const f of fs.readdirSync(cdir).filter((x) => /\.ya?ml$/.test(x)).sort()) {
       const data = readYaml(path.join(cdir, f), loadErrors, { required: false });
-      for (const [k, v] of Object.entries(data ?? {})) model.captions[k] = typeof v === 'string' ? { caption: v } : v;
+      for (const [k, v] of Object.entries(data ?? {})) model.captions[k.normalize('NFC')] = typeof v === 'string' ? { caption: v } : v;
     }
   }
 
@@ -80,8 +81,12 @@ export function loadIssue(id) {
   model.images = {};
   const idir = path.join(dir, 'images');
   if (fs.existsSync(idir)) {
-    for (const f of fs.readdirSync(idir)) if (IMAGE_EXT.test(f)) model.images[f] = path.join(idir, f);
+    // keys are NFC-normalised: macOS stores Japanese file names decomposed (NFD) while YAML is typed composed (NFC)
+    for (const f of fs.readdirSync(idir)) if (IMAGE_EXT.test(f)) model.images[f.normalize('NFC')] = path.join(idir, f);
   }
-  model.imageMeta = readYaml(path.join(idir, 'images.yaml'), loadErrors, { required: false }) ?? {};
+  const meta = readYaml(path.join(idir, 'images.yaml'), loadErrors, { required: false }) ?? {};
+  model.imageMeta = Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.normalize('NFC'), v]));
+  const themeFile = path.join(dir, 'theme.css');
+  model.themeCss = fs.existsSync(themeFile) ? fs.readFileSync(themeFile, 'utf8') : '';
   return model;
 }

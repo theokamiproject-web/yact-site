@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { outDir } from './paths.mjs';
 import { loadIssue } from './load.mjs';
-import { launch } from './browser.mjs';
+import { launch, safePage } from './browser.mjs';
 import { collectMetrics, measuredIntensity } from './metrics.mjs';
 import { sourceHash } from './build.mjs';
 
@@ -89,7 +89,7 @@ async function contactSheets(browser, out, issue, files, metrics) {
     return render(name, `<style>${css}.grid{grid-template-columns:repeat(${perRow},${spreadW}px)}</style><div class="grid">${items.join('')}</div>`);
   };
   const render = async (name, html) => {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1 });
+    const page = await safePage(browser, { viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1 });
     const htmlFile = path.join(dir, name.replace(/\.png$/, '.html'));
     fs.writeFileSync(htmlFile, `<!doctype html><meta charset="utf-8">${html}`);
     await page.goto(url(htmlFile), { waitUntil: 'load' });

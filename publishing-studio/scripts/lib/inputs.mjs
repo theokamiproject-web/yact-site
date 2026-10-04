@@ -7,7 +7,7 @@ export const CONTENT_TYPES = ['feature', 'interview', 'essay', 'photo-essay', 'c
 export function buildInputs(model, entry) {
   const a = model.articles[entry.article]?.meta ?? {};
   const assets = a.assets ?? [];
-  const byRole = (...roles) => assets.filter((x) => roles.includes(x.role)).map((x) => x.image);
+  const byRole = (...roles) => assets.filter((x) => roles.includes(x.role)).map((x) => String(x.image).normalize('NFC'));
   const slots = entry.slots ?? {};
   const inputs = {
     issue: model.issue ?? {},
@@ -34,6 +34,8 @@ export function buildInputs(model, entry) {
   inputs.image ??= Array.isArray(inputs.images) ? inputs.images[0] : inputs.images;
   // `images` slot may be given as one string
   if (typeof inputs.images === 'string') inputs.images = [inputs.images];
+  for (const k of ['hero_image', 'portrait', 'image']) if (typeof inputs[k] === 'string') inputs[k] = inputs[k].normalize('NFC');
+  if (Array.isArray(inputs.images)) inputs.images = inputs.images.map((f) => (typeof f === 'string' ? f.normalize('NFC') : f));
   return inputs;
 }
 
@@ -44,7 +46,7 @@ export function imageRefs(inputs) {
   const refs = [];
   for (const k of ['hero_image', 'portrait', 'image']) if (inputs[k]) refs.push(inputs[k]);
   for (const f of inputs.images ?? []) refs.push(f);
-  return refs;
+  return [...new Set(refs)];
 }
 
 export function entriesOf(model) {

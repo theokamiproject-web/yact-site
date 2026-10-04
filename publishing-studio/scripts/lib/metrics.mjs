@@ -1,9 +1,10 @@
 // DOM/CSS-derived per-page metrics. Runs in Chromium against output/<id>/web/index.html (screen media, fixed-size sheets).
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { safePage } from './browser.mjs';
 
 export async function collectMetrics(browser, webDir, issue) {
-  const page = await browser.newPage({ viewport: { width: 1000, height: 1400 }, deviceScaleFactor: 1 });
+  const page = await safePage(browser, { viewport: { width: 1000, height: 1400 }, deviceScaleFactor: 1 });
   await page.goto(pathToFileURL(path.join(webDir, 'index.html')).href, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
   const tokens = await page.evaluate(() => Object.fromEntries(['--columns', '--gutter', '--baseline', '--margin-top', '--margin-bottom', '--margin-inner', '--margin-outer', '--font-body', '--font-heading', '--font-display', '--color-paper', '--color-ink', '--color-accent', '--color-accent-2', '--fs-body', '--fs-caption', '--fs-h1', '--fs-display'].map((k) => [k, getComputedStyle(document.documentElement).getPropertyValue(k).trim()])));

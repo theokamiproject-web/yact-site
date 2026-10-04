@@ -46,6 +46,7 @@ export async function compose(model) {
 <meta charset="utf-8">
 <title>${esc(issue.title)}${issue.subtitle ? ` — ${esc(issue.subtitle)}` : ''}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'none'; object-src 'none'; frame-src 'none'">
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/layouts.css">
 <link rel="stylesheet" href="css/page-setup.css">

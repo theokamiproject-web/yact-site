@@ -10,7 +10,7 @@ import { validateModel, hasErrors } from './validate-model.mjs';
 import { loadRegistry } from './registry.mjs';
 import { compose } from './compose.mjs';
 import { resolveTheme, pageSetupCss } from './theme.mjs';
-import { findChromium } from './browser.mjs';
+import { findChromium, sandboxPolicy } from './browser.mjs';
 import { issueBoundary } from './boundary.mjs';
 
 const require = createRequire(import.meta.url);
@@ -85,7 +85,8 @@ export function vivliostyleVersion() {
 
 export function browserArgs() {
   const b = findChromium();
-  return b ? ['--executable-browser', b] : [];
+  // Vivliostyle CLI disables the Chromium sandbox unless told otherwise: opt IN to the sandbox by default.
+  return [...(b ? ['--executable-browser', b] : []), ...(sandboxPolicy().noSandbox ? [] : ['--sandbox'])];
 }
 
 export async function buildPdf(id, { marks = false, log = console.log, allowPublicTree = false } = {}) {

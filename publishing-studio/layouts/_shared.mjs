@@ -1,6 +1,5 @@
 // Helpers shared by layout components. Components return HTML strings only; they never touch the filesystem.
-import { inline } from '../scripts/lib/text.mjs';
-import { marked } from 'marked';
+import { inline, renderBlock } from '../scripts/lib/text.mjs';
 
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 export const has = (v) => !(v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length));
@@ -12,7 +11,8 @@ export function pos(model, file) {
 }
 export function img(model, file, cls = '', style = '') {
   if (!file) return '';
-  return `<img class="${cls}" src="images/${esc(file)}" alt="${esc(model.imageMeta?.[file]?.alt ?? model.captions?.[file]?.caption ?? '')}" data-image="${esc(file)}" style="object-position:${pos(model, file)};${style}">`;
+  // encodeURIComponent: standard percent-encoding of one path segment (spaces, #, ?, %, Japanese, parentheses…)
+  return `<img class="${cls}" src="images/${esc(encodeURIComponent(file))}" alt="${esc(model.imageMeta?.[file]?.alt ?? model.captions?.[file]?.caption ?? '')}" data-image="${esc(file)}" style="object-position:${pos(model, file)};${style}">`;
 }
 export function captionHtml(model, file, cls = '') {
   const c = model.captions?.[file];
@@ -32,7 +32,7 @@ export function blocksHtml(blocks) {
       case 'q': return `<p class="q"><span class="qm">Q</span>${inline(b.md)}</p>`;
       case 'a': return `<p class="a">${inline(b.md)}</p>`;
       case 'quote': return `<blockquote>${inline(b.md)}</blockquote>`;
-      case 'list': return marked.parse(b.md);
+      case 'list': return renderBlock(b.md);
       default: return `<p${b.cont ? ' class="cont"' : ''}>${inline(b.md)}</p>`;
     }
   }).join('\n');

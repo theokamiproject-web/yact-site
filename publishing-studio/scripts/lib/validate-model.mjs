@@ -1,6 +1,7 @@
 // Publication Model validation: JSON Schema + cross-file semantic checks.
 import { checkSchema } from './schema.mjs';
 import { loadRegistry } from './registry.mjs';
+import { scanMarkdown } from './text.mjs';
 import { buildInputs, entriesOf, imageRefs, isEmpty, planText, pagesOf } from './inputs.mjs';
 
 export const FORMATS = { A4: [210, 297], A5: [148, 210], A6: [105, 148], B5: [182, 257], B6: [128, 182] };
@@ -22,6 +23,19 @@ export async function validateModel(model) {
   }
   const { issue, flatplan } = model;
   if (!Array.isArray(flatplan.pages)) return out;
+
+  // --- input safety: manuscripts and theme CSS are untrusted
+  const badRef = (f) => typeof f !== 'string' || /[\\/]/.test(f) || f.includes('..') || f.startsWith('.') || /[\u0000-\u001f]/.test(f);
+  for (const [id, art] of Object.entries(model.articles)) {
+    for (const a of art.meta.assets ?? []) if (badRef(a.image)) add('error', 'ASSET_PATH_INVALID', `image reference ${JSON.stringify(a.image)} must be a plain file name inside images/ (no path separators, "..", or leading dot)`, art.file);
+    const sc = scanMarkdown(art.body);
+    if (sc.html) add('warning', 'MD_RAW_HTML_ESCAPED', `${sc.html} raw HTML fragment(s) are not allowed in manuscripts and will be printed as literal text`, art.file);
+    if (sc.images) add('warning', 'MD_IMAGE_REMOVED', `${sc.images} Markdown image(s) are dropped; place images in images/ and list them in "assets"`, art.file);
+    if (sc.links) add('info', 'MD_LINK_AS_TEXT', `${sc.links} link(s) print as plain text`, art.file);
+  }
+  for (const e of flatplan.pages) for (const f of [...(Array.isArray(e.slots?.images) ? e.slots.images : [e.slots?.images]), e.slots?.image, e.slots?.hero_image].filter((x) => x !== undefined)) if (badRef(f)) add('error', 'ASSET_PATH_INVALID', `slot image reference ${JSON.stringify(f)} must be a plain file name inside images/`, `flatplan p${e.pages?.join('-')}`);
+  const cssBlob = `${model.themeCss ?? ''}\n${Object.values(issue.theme_overrides ?? {}).join('\n')}`;
+  if (/@import|url\s*\(\s*['"]?\s*(?:[a-z][a-z0-9+.-]*:|\/\/)|expression\s*\(|javascript:/i.test(cssBlob)) add('error', 'THEME_EXTERNAL_RESOURCE', 'theme.css / theme_overrides must not use @import or absolute/remote url(): book builds never load network or scheme URLs', 'theme.css');
 
   // --- issue consistency
   if (FORMATS[issue.format]) {
