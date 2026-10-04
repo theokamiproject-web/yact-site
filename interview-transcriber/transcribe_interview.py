@@ -66,6 +66,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     g.add_argument("--neutral-prompt", action="store_true",
                    help="中立ASRプロンプト（句読点つきの自然な文の見本。内容・固有名詞に依存しない）を渡す（標準はOFF）。"
                         "句点がほぼ出ない音声で試す")
+    p.add_argument("--vad-threshold", type=wx.parse_vad_threshold, default=None, metavar="X",
+                   help="[実験用] VAD（発話区間検出）の閾値。vad_onset と vad_offset の両方を X にする（0<X<1、例 0.3）。"
+                        "省略すると標準VAD（onset 0.5 / offset 0.363）。下げても精度が良くなるとは限らず、反復幻覚や実発話の欠落が"
+                        "増える音源もあります。通常は指定せず、比較実験では --output-dir を分けてください")
     p.add_argument("--merge-gap", type=float, default=tb.DEFAULT_MERGE_GAP,
                    help="雑誌版で同一話者の発言を結合する最大の時間差（秒、既定 %(default)s）")
     p.add_argument("--fragment-gap", type=float, default=tb.DEFAULT_FRAGMENT_GAP,
@@ -94,6 +98,18 @@ def main(argv=None) -> int:
     stem = a.audio.stem
     cdir = a.cache_dir / stem
     cdir.mkdir(parents=True, exist_ok=True)
+    # VADが実験条件のときは、ASR結果とalignment（ASR結果に依存）を cache/<stem>/vad_<X>/ に分ける。
+    # 標準は従来どおり cache/<stem>/ 直下（既存キャッシュと後方互換）。話者分離は音声だけに依存するので共有する。
+    vad_exp = a.vad_threshold is not None
+    acache = cdir / wx.vad_dirname(a.vad_threshold) if vad_exp else cdir
+    acache.mkdir(parents=True, exist_ok=True)
+    vad_info = wx.vad_describe(a.vad_threshold)
+    if vad_exp:
+        log(f"Experimental VAD threshold: {a.vad_threshold:g}  （実験用VAD: vad_onset={a.vad_threshold:g} / vad_offset={a.vad_threshold:g}。"
+            f"標準は onset {wx.VAD_DEFAULT['onset']} / offset {wx.VAD_DEFAULT['offset']}）")
+        notes.append(f"この結果は実験用VAD閾値 {a.vad_threshold:g}（vad_onset={a.vad_threshold:g} / vad_offset={a.vad_threshold:g}）を使用しています。"
+                     f"標準（onset {wx.VAD_DEFAULT['onset']} / offset {wx.VAD_DEFAULT['offset']}）の結果とは別物です。"
+                     "VADを下げても精度が良くなるとは限らず、反復幻覚や実発話の欠落が増えることがあります。")
 
     # ---------------- STEP1 音声確認
     if a.skip_transcription and not a.audio.exists():
@@ -120,11 +136,14 @@ def main(argv=None) -> int:
     elif prompt_kind == "neutral":
         log("[ASR] 注意: 中立プロンプトは、音源によって相槌の増加や話者境界の悪化が確認されています")
     cfg = wx.ASRConfig(model=a.model, language=a.language, device=a.device, compute_type=a.compute_type,
-                       batch_size=a.batch_size, initial_prompt=prompt, normalize=not a.no_normalize)
+                       batch_size=a.batch_size, initial_prompt=prompt, normalize=not a.no_normalize,
+                       vad_threshold=a.vad_threshold)
     device = wx.resolve_device(a.device)
     sig = {"fingerprint": fp, "model": a.model, "language": a.language, "prompt": prompt}
+    if vad_exp:  # 標準は従来の _sig のまま（既存キャッシュを使い続けられる）。実験時だけ VAD を署名に含める
+        sig["vad"] = wx.vad_signature(a.vad_threshold)
 
-    f_whisper, f_align = cdir / "whisper_result.json", cdir / "aligned_result.json"
+    f_whisper, f_align = acache / "whisper_result.json", acache / "aligned_result.json"
     f_diar = cdir / "diarization_result.json"
 
     # ---------------- STEP2-4 前処理・文字起こし・alignment
@@ -145,7 +164,8 @@ def main(argv=None) -> int:
             whisper["_sig"] = sig
             wx.cache_save(f_whisper, whisper)
             f_align.unlink(missing_ok=True)
-            f_diar.unlink(missing_ok=True)
+            if not vad_exp:   # 実験時は、標準条件と共有している話者分離キャッシュを消さない
+                f_diar.unlink(missing_ok=True)
     aligned = wx.cache_load(f_align)
     if not aligned:
         try:
@@ -166,6 +186,8 @@ def main(argv=None) -> int:
     dkey = {"num": a.num_speakers, "min": a.min_speakers, "max": a.max_speakers, "model": dmodel}
     if diar and not a.skip_transcription and diar.get("key") != dkey:
         diar = None
+    if diar and fp and diar.get("audio_fp") not in (None, fp):   # 別の音声から作られた話者分離は使わない（標準/実験で共有するため）
+        diar = None
     if diar:
         log("[話者分離] キャッシュを使用")
         diar_segments = diar["segments"]
@@ -181,7 +203,7 @@ def main(argv=None) -> int:
             log(f"[話者分離] 実行中 ({dmodel})")
             diar_segments = diarization.run_diarization(
                 wav, device, os.environ.get("HF_TOKEN"), a.num_speakers, a.min_speakers, a.max_speakers, dmodel)
-            wx.cache_save(f_diar, {"key": dkey, "segments": diar_segments})
+            wx.cache_save(f_diar, {"key": dkey, "audio_fp": fp, "segments": diar_segments})
         except Exception as e:  # noqa: BLE001 - 話者分離が失敗しても文字起こしは残す
             diar_segments = None
             notes.append(f"話者分離に失敗しました（{type(e).__name__}: {str(e)[:200]}）。話者は「{diarization.UNKNOWN_SPEAKER}」として出力しています。"
@@ -212,7 +234,15 @@ def main(argv=None) -> int:
             notes.append("話者名は speakers.yaml の SPEAKER_xx との対応に基づきます。SPEAKER番号は実行ごとに"
                          "入れ替わり得るため、各話者の最初の発言（上記ログ）と照合して確認してください。")
 
-    (out_dir / "01_raw_transcript.md").write_text(tb.render_raw(turns, title, labels), encoding="utf-8")
+    banner = (f"※ 実験用VAD閾値 {a.vad_threshold:g}（vad_onset={a.vad_threshold:g} / vad_offset={a.vad_threshold:g}）で認識した結果です。"
+              f"標準VAD（onset {wx.VAD_DEFAULT['onset']} / offset {wx.VAD_DEFAULT['offset']}）の結果ではありません。") if vad_exp else None
+    (out_dir / "01_raw_transcript.md").write_text(tb.render_raw(turns, title, labels, banner), encoding="utf-8")
+    (out_dir / "run_metadata.json").write_text(json.dumps({
+        "vad": vad_info,
+        "asr": {"model": a.model, "language": a.language, "initial_prompt": prompt_kind},
+        "audio": a.audio.name, "audio_fingerprint": fp,
+        "note": ("実験用VAD。標準（onset 0.5 / offset 0.363）の結果とは別物" if vad_exp else "標準VAD（WhisperXの既定）"),
+    }, ensure_ascii=False, indent=1), encoding="utf-8")
     tb.write_json(out_dir / "transcript.json", turns)
     log(f"[出力] 01_raw_transcript.md / transcript.json（{len(turns)}発言）")
 

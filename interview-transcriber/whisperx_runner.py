@@ -28,6 +28,7 @@ class ASRConfig:
     compute_type: str = "auto"
     batch_size: int = 8
     initial_prompt: str | None = None
+    vad_threshold: float | None = None   # 実験用。None=WhisperXの既定VAD（onset 0.5 / offset 0.363）をそのまま使う
     hf_token: str | None = None
     normalize: bool = True
     extra: dict = field(default_factory=dict)
@@ -65,6 +66,54 @@ def resolve_asr_prompt(dictionary_prompt: str | None, use_neutral: bool = False)
     if use_neutral:
         return NEUTRAL_ASR_PROMPT, "neutral"
     return None, "none"
+
+
+# ------------------------------------------------------------------ 実験用VAD閾値
+# 標準は WhisperX（pyannote VAD）の既定値をそのまま使い、何も渡さない: onset=0.5 / offset=0.363。
+# --vad-threshold X を明示したときだけ、Track-81 の比較実験と同じ方法で渡す:
+#   whisperx.load_model(..., vad_options={"vad_onset": X, "vad_offset": X})   （onset と offset の両方に同じ値）
+# 値は VAD のスコア（確率）に対するしきい値なので 0 < X < 1。0 は pyannote 側で offset が「未指定」と同義に
+# 扱われ（`offset or onset`）、1 は発話を一切検出できないため、どちらも受け付けない。
+VAD_DEFAULT = {"onset": 0.5, "offset": 0.363}
+
+
+def parse_vad_threshold(text) -> float:
+    """argparse の type 関数。不正な値は ArgumentTypeError（修正方法つき）。"""
+    import argparse
+    import math
+    try:
+        v = float(text)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(
+            f"--vad-threshold は数値で指定してください（指定値: {text!r}）。例: --vad-threshold 0.3") from None
+    if not math.isfinite(v) or not (0.0 < v < 1.0):
+        raise argparse.ArgumentTypeError(
+            f"--vad-threshold は 0 より大きく 1 より小さい値で指定してください（指定値: {text}）。例: 0.3。"
+            f"小さいほど弱い音も発話として拾い、大きいほど拾いにくくなります（標準は onset {VAD_DEFAULT['onset']} / "
+            f"offset {VAD_DEFAULT['offset']} で、省略すれば標準になります）")
+    return v
+
+
+def vad_options(threshold: float | None) -> dict | None:
+    """whisperx.load_model の vad_options。標準（None）は None＝何も渡さない。"""
+    if threshold is None:
+        return None
+    return {"vad_onset": threshold, "vad_offset": threshold}
+
+
+def vad_signature(threshold: float | None) -> dict | None:
+    return None if threshold is None else {"onset": threshold, "offset": threshold}
+
+
+def vad_describe(threshold: float | None) -> dict:
+    """出力ファイルに記録するVAD設定。"""
+    if threshold is None:
+        return {"mode": "default", "onset": VAD_DEFAULT["onset"], "offset": VAD_DEFAULT["offset"], "threshold": None}
+    return {"mode": "experimental", "onset": threshold, "offset": threshold, "threshold": threshold}
+
+
+def vad_dirname(threshold: float | None) -> str | None:
+    return None if threshold is None else f"vad_{threshold:g}"
 
 
 # ------------------------------------------------------------------ 環境
@@ -167,13 +216,20 @@ def transcribe(wav: Path, cfg: ASRConfig) -> dict:
     asr_options = {}
     if cfg.initial_prompt:
         asr_options["initial_prompt"] = cfg.initial_prompt
+    kw = {}
+    vo = vad_options(cfg.vad_threshold)
+    if vo is not None:                      # 標準では vad_options を渡さない（WhisperXの既定のまま）
+        kw["vad_options"] = vo
+        log(f"[ASR] 実験用VAD閾値: {cfg.vad_threshold:g}（vad_onset={cfg.vad_threshold:g} / vad_offset={cfg.vad_threshold:g}）")
     model = whisperx.load_model(cfg.model, device, compute_type=ctype, language=cfg.language,
-                                asr_options=asr_options or None)
+                                asr_options=asr_options or None, **kw)
     audio = whisperx.load_audio(str(wav))
     result = model.transcribe(audio, batch_size=cfg.batch_size, language=cfg.language)
     result["language"] = result.get("language") or cfg.language
     result["meta"] = {"model": cfg.model, "device": device, "compute_type": ctype,
                       "initial_prompt": cfg.initial_prompt}
+    if cfg.vad_threshold is not None:
+        result["meta"]["vad"] = vad_signature(cfg.vad_threshold)
     del model
     return result
 

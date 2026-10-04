@@ -81,6 +81,7 @@ python transcribe_interview.py interview.m4a \
 | `--dictionary-prompt` | 辞書をWhisperの初期プロンプトに渡す（**標準はOFF**）。`--neutral-prompt` とは同時指定不可（エラー） |
 | `--keep-hallucinations` | HIGH（確実性の高い）幻覚も自動不採用にせず、要確認として残す |
 | `--min-untranscribed-sec` | ASR未転写候補として表示する最小の連続秒数（既定 1.5。話者分離ありのとき） |
+| `--vad-threshold X` | 【実験用】VADの閾値（0<X<1）。**通常は指定しない**。詳細は下の「実験用VAD」 |
 | `--merge-gap` / `--fragment-gap` | 雑誌版で同一話者の発言を結合する最大の時間差（秒。既定 2.0 / 明らかな断片の続きは 3.0） |
 | `--raw-only` | 逐語録と JSON だけ |
 | `--skip-edit` | 雑誌版（03）を作らない（raw と clean のみ） |
@@ -92,6 +93,31 @@ python transcribe_interview.py interview.m4a \
 | `--mark-unclear-logprob -1.0` | 【実験的】低信頼の発言を `[聞き取り不明 HH:MM:SS]` に置換（原文は JSON の `unclear` に退避） |
 
 対応形式: mp3 / wav / m4a / mp4（ほか ffmpeg が読めるもの）。元ファイルは変更しません。一時ファイルは `temp/`。
+
+### 実験用VAD（`--vad-threshold`）
+
+```bash
+# 標準（推奨）: WhisperX の既定VAD（onset 0.5 / offset 0.363）をそのまま使う
+python transcribe_interview.py interview.m4a --output-dir output/default
+
+# 実験: VADの閾値を明示する。結果は必ず別の --output-dir に出す
+python transcribe_interview.py interview.m4a --vad-threshold 0.3 --output-dir output/vad_03
+```
+
+1. **実験用オプションです。**
+2. **省略時は、現在の既定VAD（onset 0.5 / offset 0.363）をそのまま使います。** 省略時の挙動・キャッシュ・出力は従来から変わりません。
+3. **値を下げても精度が良くなるとは限りません。**
+4. Track-81（20分・5話者と推定）の比較では、閾値を下げる（0.4 / 0.3 / 0.2）と**未転写率は減りました**（標準 17.2% → 11.7〜12.3%）が、**反復幻覚（0.4・0.2）や実発話の欠落（0.3）が増える条件**がありました。人間の聞き取り確認では、4区間とも標準が最も実音に近い結果でした。
+5. **通常利用では指定しないことを推奨します。**
+6. 未転写が多い音源（`review_required.md` の「ASR未転写候補」が多い音源）の**比較実験**に使います。
+7. **比較時は別の `--output-dir` を使ってください**（上書き事故の防止）。`--output-dir` は指定どおりに使い、自動では変更しません。標準は `output/default/`、実験は `output/vad_0.3/` のように分けることを強く推奨します。
+
+`--vad-threshold 0.3` が内部で設定するもの: `whisperx.load_model(..., vad_options={"vad_onset": 0.3, "vad_offset": 0.3})`（**onset と offset の両方を同じ値**にします。Track-81 の比較実験と同じ方法です）。0 < X < 1 の範囲だけ受け付けます（範囲外・数値以外はエラー）。
+
+実験時のしくみ:
+- **記録**: 実行ログに `Experimental VAD threshold: 0.3`、`review_required.md` の「処理に関する注意」・`01_raw_transcript.md` の冒頭・`run_metadata.json`（`vad.mode` が `default` / `experimental`、onset・offset）に「実験用VAD」と記録します。標準の実行も `run_metadata.json` に `default` と記録されるので、後からファイルだけ見て条件を判別できます。
+- **キャッシュ**: ASR結果の署名（`_sig`）に VAD設定を含め、標準・0.4・0.3・0.2 は別キャッシュです（実験は `cache/<名前>/vad_<X>/` 配下。標準は従来どおり `cache/<名前>/` 直下で、既存キャッシュはそのまま使えます）。alignment も ASR結果ごとに分けます。話者分離は VAD に依存しないので共有します（別の音声から作られたものは使いません）。
+- **自動化はしません**: 自動最適化、音源ごとの自動再実行、最適値の自動選択は行いません。
 
 ### 再実行・再開
 - 失敗後の再実行: **同じコマンドをもう一度**。完了済みの段階（文字起こし／alignment／話者分離／LLMのchunk）はキャッシュから再利用されます。
@@ -270,7 +296,7 @@ LLMの提案（不採用・clean版へ差し戻し）:
 ## テスト
 
 ```bash
-python -m pytest tests -q          # 110件。WhisperX・音声不要（偽LLMサーバを使用）
+python -m pytest tests -q          # 178件。WhisperX・音声不要（偽LLMサーバを使用）
 python tests/make_sample_audio.py samples/sample_dialogue.m4a   # open_jtalk で合成音声を作る（任意）
 ```
 

@@ -258,8 +258,10 @@ def apply_clean(turns: list[dict]) -> None:
 
 
 # ------------------------------------------------------------------ render
-def render_raw(turns: list[dict], title: str, labels: dict[str, str]) -> str:
+def render_raw(turns: list[dict], title: str, labels: dict[str, str], banner: str | None = None) -> str:
     out = [f"# 逐語録（{title}）", ""]
+    if banner:
+        out += [banner, ""]
     out += ["話者の割り当て: " + (" / ".join(f"{k}={v}" for k, v in sorted(labels.items())) or "なし（話者分離なし）"), "",
             "※ 音声認識の出力をそのまま保持した編集前の記録です。", ""]
     for t in turns:
