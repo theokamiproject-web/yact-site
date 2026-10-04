@@ -1,0 +1,3 @@
+#!/bin/sh
+# Publishing boundary: refuse to commit private source / generated files (this repository is served by GitHub Pages).
+exec node publishing-studio/scripts/boundary-check.mjs --staged

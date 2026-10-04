@@ -1,3 +1,20 @@
 node_modules/
+
+# --- Publishing Studio publishing boundary (see publishing-studio/boundary.json) ---
+# generated output (PDF, PNG, metrics, preflight, review packs)
 publishing-studio/output/*
 !publishing-studio/output/.gitkeep
+# real issues: never committed (this repo is served by GitHub Pages)
+publishing-studio/workspace/*
+!publishing-studio/workspace/README.md
+!publishing-studio/workspace/issues/
+publishing-studio/workspace/issues/*
+!publishing-studio/workspace/issues/.gitkeep
+# anything directly under issues/ is private unless it is an example listed in boundary.json
+publishing-studio/issues/*
+!publishing-studio/issues/_template/
+!publishing-studio/issues/test-issue-01/
+!publishing-studio/issues/test-issue-02/
+# stray PDFs; deliberate releases go to publishing-studio/publish/<id>/
+publishing-studio/**/*.pdf
+!publishing-studio/publish/**

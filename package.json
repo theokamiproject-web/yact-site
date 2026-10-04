@@ -24,6 +24,9 @@
     "publication:critic": "node publishing-studio/scripts/critic-pack.mjs",
     "publication:preflight": "node publishing-studio/scripts/preflight.mjs",
     "publication:all": "node publishing-studio/scripts/all.mjs",
-    "publication:test": "node --test \"publishing-studio/tests/*.test.mjs\""
+    "publication:test": "node --test \"publishing-studio/tests/*.test.mjs\"",
+    "publication:boundary": "node publishing-studio/scripts/boundary-check.mjs",
+    "publication:install-hooks": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks || true"
   }
 }

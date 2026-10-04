@@ -10,6 +10,7 @@ import { loadIssue } from './load.mjs';
 import { validateModel } from './validate-model.mjs';
 import { sourceHash } from './build.mjs';
 import { loadReviews, openSevere } from './critic.mjs';
+import { issueBoundary, overrideRequested } from './boundary.mjs';
 
 const exec = promisify(execFile);
 const MM = 25.4 / 72;
@@ -30,6 +31,14 @@ export async function runPreflight(id) {
     else if (warns.length) add(code, check, warnAs, fmt(warns));
     else add(code, check, 'PASS', okText);
   };
+
+  // ---- publishing boundary
+  {
+    const prevBuild = fs.existsSync(path.join(out, 'build.json')) ? JSON.parse(fs.readFileSync(path.join(out, 'build.json'), 'utf8')) : null;
+    const b = issueBoundary(model.dir, { allowPublicTree: overrideRequested({}) || !!prevBuild?.boundary_override });
+    if (!b.findings.length) add('P00', 'publishing boundary (private source not in the public tree)', 'PASS', `issue is ${b.class}; not tracked/ignorable as required`);
+    else add('P00', 'publishing boundary (private source not in the public tree)', b.overridden ? 'WARNING' : 'FAIL', `${b.overridden ? 'OVERRIDDEN by the user: ' : ''}${b.findings.map((f) => f.code).join(', ')}`);
+  }
 
   // ---- model / flatplan
   const modelCodes = new Set(['FLATPLAN_GAP', 'FLATPLAN_OVERLAP', 'FLATPLAN_RANGE', 'SPAN_MISMATCH', 'SPREAD_PARITY', 'SPREAD_NOT_CONSECUTIVE', 'PAGES_NOT_MULTIPLE_OF_4', 'PAGES_ODD', 'SCHEMA', 'FILE_MISSING', 'YAML_PARSE', 'ISSUE_MISSING', 'MISSING_INPUT', 'ARTICLE_NO_FRONTMATTER', 'ARTICLE_DUPLICATE']);

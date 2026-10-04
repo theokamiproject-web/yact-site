@@ -1,0 +1,13 @@
+{
+  "_comment": "Publishing boundary. Everything under issues/ that is NOT listed in `examples` is PRIVATE_SOURCE. Keep this list identical to the allow-list in the repository .gitignore (a test enforces it).",
+  "examples": ["_template", "test-issue-01", "test-issue-02"],
+  "publish_dir": "publish",
+  "private_roots": ["workspace"],
+  "classes": {
+    "PRIVATE_SOURCE": "unpublished manuscripts, photos, captions, notes, editorial data, reviews of a real issue — never commit to a public/Pages repository",
+    "BUILD_TEMP": "output/<id>/{web,pages,contact,review-pack} — regenerable intermediates",
+    "GENERATED_PRIVATE": "PDF, metrics, preflight, rhythm, fingerprint… derived from private source",
+    "PUBLISHABLE": "example issues listed above, publish/<id>/ (deliberately released files), the public site",
+    "SYSTEM": "framework code, themes, layouts, schemas, tests, docs, review records of the framework"
+  }
+}

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, outDir, REPO_ROOT } from './lib/paths.mjs';
+import { overrideRequested, issueBoundary } from './lib/boundary.mjs';
 import { loadIssue } from './lib/load.mjs';
 import { validateModel, hasErrors } from './lib/validate-model.mjs';
 import { buildPdf } from './lib/build.mjs';
@@ -21,9 +22,13 @@ try {
   step(1, 'validate');
   const findings = await validateModel(loadIssue(id));
   for (const f of findings.filter((x) => x.level !== 'info')) console.log(`  ${f.level.toUpperCase()} ${f.code}: ${f.message}${f.where ? ` [${f.where}]` : ''}`);
+  const model0 = loadIssue(id);
+  const bnd = issueBoundary(model0.dir, { allowPublicTree: overrideRequested(flags) });
+  for (const f of bnd.findings) console.log(`  ${bnd.overridden ? 'OVERRIDDEN' : 'ERROR'} ${f.code}: ${f.message}`);
+  if (!bnd.ok) throw new Error('publishing boundary violation');
   if (hasErrors(findings)) throw new Error('validation failed');
   step(2, 'build (Vivliostyle PDF)');
-  await buildPdf(id, { marks: !!flags.marks });
+  await buildPdf(id, { marks: !!flags.marks, allowPublicTree: overrideRequested(flags) });
   step(3, 'render pages + contact sheets + metrics');
   await renderPages(id);
   step(4, 'critic preparation (review pack, rhythm, fingerprint)');

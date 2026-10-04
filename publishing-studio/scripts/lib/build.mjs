@@ -11,6 +11,7 @@ import { loadRegistry } from './registry.mjs';
 import { compose } from './compose.mjs';
 import { resolveTheme, pageSetupCss } from './theme.mjs';
 import { findChromium } from './browser.mjs';
+import { issueBoundary } from './boundary.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -37,8 +38,11 @@ export function sourceHash(model) {
   return h.digest('hex');
 }
 
-export async function buildWeb(id, { marks = false, log = console.log } = {}) {
+export async function buildWeb(id, { marks = false, log = console.log, allowPublicTree = false } = {}) {
   const model = loadIssue(id);
+  const bnd = issueBoundary(model.dir, { allowPublicTree });
+  for (const f of bnd.findings) log(`  ${bnd.overridden ? 'OVERRIDDEN' : 'ERROR'} ${f.code}: ${f.message}`);
+  if (!bnd.ok) throw new Error('publishing boundary violation (private source would be public); see above');
   const findings = await validateModel(model);
   for (const f of findings.filter((x) => x.level === 'error')) log(`  ERROR ${f.code}: ${f.message}${f.where ? ` (${f.where})` : ''}`);
   if (hasErrors(findings)) throw new Error('validation failed; fix the errors above (npm run publication:validate -- ' + id + ')');
@@ -58,7 +62,7 @@ export async function buildWeb(id, { marks = false, log = console.log } = {}) {
   for (const [f, src] of Object.entries(model.images)) fs.copyFileSync(src, path.join(web, 'images', f));
   fs.writeFileSync(path.join(web, 'index.html'), html);
   fs.writeFileSync(path.join(web, 'pages.json'), JSON.stringify({ issue: model.issue, pages, toc }, null, 2));
-  return { model, web, pages, findings };
+  return { model, web, pages, findings, boundary_override: bnd.overridden };
 }
 
 function run(cmd, args, { cwd, log }) {
@@ -84,8 +88,8 @@ export function browserArgs() {
   return b ? ['--executable-browser', b] : [];
 }
 
-export async function buildPdf(id, { marks = false, log = console.log } = {}) {
-  const { model, web, pages } = await buildWeb(id, { marks, log });
+export async function buildPdf(id, { marks = false, log = console.log, allowPublicTree = false } = {}) {
+  const { model, web, pages, boundary_override } = await buildWeb(id, { marks, log, allowPublicTree });
   const out = outDir(id);
   const pdf = path.join(out, `${id}.pdf`);
   const args = [vivliostyleBin(), 'build', path.join(web, 'index.html'), '-d', '-o', pdf, '-l', model.issue.language, '--title', model.issue.title, ...browserArgs(), '--log-level', 'silent'];
@@ -97,6 +101,7 @@ export async function buildPdf(id, { marks = false, log = console.log } = {}) {
     source_hash: sourceHash(model),
     pdf: path.basename(pdf),
     marks,
+    boundary_override: !!boundary_override,
     bleed_mm: model.issue.bleed,
     trim_mm: [model.issue.width, model.issue.height],
     expected_pages: model.issue.pages,

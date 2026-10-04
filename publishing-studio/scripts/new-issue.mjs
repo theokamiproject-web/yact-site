@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as yaml from 'js-yaml';
-import { parseArgs, ISSUES_DIR, assertId, issueDir } from './lib/paths.mjs';
+import { parseArgs, ISSUES_DIR, NEW_ISSUES_DIR, assertId } from './lib/paths.mjs';
 
 const { positional, flags } = parseArgs(process.argv.slice(2));
 const id = positional[0];
@@ -13,8 +13,10 @@ if (!id) {
 }
 try {
   assertId(id);
-  const dest = issueDir(id);
+  const dest = path.join(NEW_ISSUES_DIR, id);
+  if (fs.existsSync(path.join(ISSUES_DIR, id))) throw new Error(`an example/issue named "${id}" already exists`);
   if (fs.existsSync(dest)) throw new Error(`issue already exists: ${dest}`);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.cpSync(path.join(ISSUES_DIR, '_template'), dest, { recursive: true });
   const f = path.join(dest, 'issue.yaml');
   const issue = yaml.load(fs.readFileSync(f, 'utf8'));
