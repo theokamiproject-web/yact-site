@@ -8,8 +8,6 @@ import { SEVERITIES } from './analysis.mjs';
 
 export const CATEGORIES = ['readability', 'hierarchy', 'visual-rhythm', 'consistency', 'originality', 'editorial-rhythm', 'page-balance', 'typography', 'image-usage', 'issue-identity'];
 export const STAGES = ['blind', 'context', 'rereview'];
-const AUTO_BEGIN = '<!-- AUTO:BEGIN -->';
-const AUTO_END = '<!-- AUTO:END -->';
 
 const STAGE_HELP = {
   blind: '入力は `review-pack/blind/`（ページPNG・contact sheet・数値のみ）。editorial.yaml / flatplan.yaml / notes / 他のレビューは**見ない**。意図を知らない読者として、読めるか・リズムがあるか・何の雑誌に見えるかを評価する。',
@@ -17,13 +15,14 @@ const STAGE_HELP = {
   rereview: '修正後に再build/再render/`publication:critic`を実行したあとで行う。blind/contextの全指摘（MEDIUM以上は必須）に対し、新しいPNGを見て disposition を付ける。修正で生じた新しい問題（regressed）も探す。',
 };
 
-export function reviewTemplate(stage, issue, auto) {
+export function reviewTemplate(stage, issue) {
   const rows = CATEGORIES.map((c) => `| ${c} |  |  |`).join('\n');
   return `---
 stage: ${stage}
 status: pending
 reviewer:
 round: 1
+source_hash:   # copy from output/${issue.id}/review-pack/PACK.json — binds this review to the exact output you looked at
 ---
 # Publication Critic — ${stage} review (${issue.title})
 
@@ -37,11 +36,10 @@ round: 1
 |---|:-:|---|
 ${rows}
 
-## Auto findings (scripts / mechanical — do not edit between markers)
+## Auto findings
 
-${AUTO_BEGIN}
-${autoBlock(stage, auto)}
-${AUTO_END}
+Generated numbers are NOT stored in this authored file (so re-running the pipeline never touches it).
+Read \`output/${issue.id}/rhythm.md\` (MEASUREMENT / HEURISTIC / REVIEW_REQUIRED)${stage === 'rereview' ? ' and `output/' + issue.id + '/review-pack/context/auto-diff.md` (RESOLVED / NEW / STILL vs the first pack)' : ''}, and cite findings as A-xxx in Evidence.
 
 ## Findings
 
@@ -69,27 +67,22 @@ ${stage === 'rereview' ? `
 `;
 }
 
-function autoBlock(stage, auto) {
-  if (!auto) return '(run `publication:critic` after render)';
-  const lines = auto.current.map((f) => `- ${f.id} [${f.severity}] ${f.category} p${f.pages.join(',') || '–'}: ${f.problem} — ${f.evidence}`);
-  const out = [`generated: ${auto.generated_at}`, '', ...(lines.length ? lines : ['(none)'])];
-  if (stage === 'rereview' && auto.snapshot) {
-    const key = (f) => `${f.category}|${f.problem.replace(/\d+/g, '#')}|${f.pages.join(',')}`;
-    const now = new Set(auto.current.map(key));
-    const was = new Set(auto.snapshot.map(key));
-    out.push('', '### diff vs snapshot (first pack)');
-    out.push(...auto.snapshot.filter((f) => !now.has(key(f))).map((f) => `- RESOLVED ${f.id} ${f.problem}`));
-    out.push(...auto.current.filter((f) => !was.has(key(f))).map((f) => `- NEW ${f.id} [${f.severity}] ${f.problem}`));
-    out.push(...auto.current.filter((f) => was.has(key(f))).map((f) => `- STILL ${f.id} [${f.severity}] ${f.problem}`));
-  }
-  return out.join('\n');
+/** A review file that holds anyone's work: not a pending template (status, findings, scores, or emergent notes were written). */
+export function isAuthored(md) {
+  const r = parseReview(md);
+  const hasScore = Object.values(r.scores).some((v) => Number.isInteger(v));
+  const hasEmergent = r.emergent.some((e) => !/^(none observed)?$/i.test(e) && e !== '-');
+  return r.meta.status !== 'pending' || r.findings.length > 0 || hasScore || hasEmergent || r.dispositions.length > 0 || !!String(r.meta.reviewer ?? '').trim();
 }
 
-/** Refresh only the AUTO block of an existing file. */
-export function refreshAuto(md, stage, auto) {
-  const a = md.indexOf(AUTO_BEGIN), b = md.indexOf(AUTO_END);
-  if (a < 0 || b < 0) return md;
-  return `${md.slice(0, a + AUTO_BEGIN.length)}\n${autoBlock(stage, auto)}\n${md.slice(b)}`;
+/** Copy review files into reviews/archive/<timestamp>/ (never deleted by the tool). Returns the archive directory. */
+export function archiveReviews(reviewsDir, files) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
+  let dir = path.join(reviewsDir, 'archive', stamp);
+  for (let i = 2; fs.existsSync(dir); i++) dir = path.join(reviewsDir, 'archive', `${stamp}-${i}`);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of files) if (fs.existsSync(f)) fs.copyFileSync(f, path.join(dir, path.basename(f)));
+  return dir;
 }
 
 const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
@@ -130,15 +123,17 @@ export function loadReviews(reviewsDir) {
 }
 
 /** Returns {problems: string[], pending: string[], report} */
-export function checkReviews(reviews, issue) {
+export function checkReviews(reviews, issue, { sourceHash } = {}) {
   const problems = [];
   const pending = [];
+  const stale = [];
   const seen = new Set();
   for (const s of STAGES) {
     const r = reviews[s];
     if (!r) { pending.push(`${s}: file missing`); continue; }
     if (r.meta.stage !== s) problems.push(`${s}: front matter stage must be "${s}"`);
     if (r.meta.status !== 'complete') { pending.push(`${s}: status is ${r.meta.status ?? 'unset'}`); continue; }
+    if (sourceHash && String(r.meta.source_hash ?? '') !== sourceHash) stale.push(`${s}: review is ${r.meta.source_hash ? 'bound to a different version of the output' : 'not bound to any output version (no source_hash)'}; it describes an earlier build and must be repeated`);
     if (!r.meta.reviewer) problems.push(`${s}: reviewer is empty`);
     for (const c of CATEGORIES) if (!Number.isInteger(r.scores[c]) || r.scores[c] < 1 || r.scores[c] > 5) problems.push(`${s}: score for "${c}" must be 1-5`);
     for (const f of r.findings) {
@@ -172,13 +167,20 @@ export function checkReviews(reviews, issue) {
   }
   const sch = checkSchema('critic-report', report);
   for (const e of sch) problems.push(`critic-report.json schema: ${e.path} ${e.message}`);
-  return { problems, pending, report };
+  report.stale = stale;
+  return { problems, pending, stale, report };
 }
 
-/** Open BLOCKER/HIGH after the latest completed stage (rereview dispositions override earlier findings). */
-export function openSevere(reviews) {
-  const disp = new Map((reviews.rereview?.meta.status === 'complete' ? reviews.rereview.dispositions : []).map((d) => [d.id, d.status]));
-  const all = ['blind', 'context'].flatMap((s) => (reviews[s]?.meta.status === 'complete' ? reviews[s].findings : []));
-  const rr = reviews.rereview?.meta.status === 'complete' ? reviews.rereview.findings : [];
+/** Stages whose review is complete AND bound to the current output. */
+export function freshStages(reviews, sourceHash) {
+  return STAGES.filter((s) => reviews[s]?.meta.status === 'complete' && (!sourceHash || String(reviews[s].meta.source_hash ?? '') === sourceHash));
+}
+
+/** Open BLOCKER/HIGH after the latest fresh stage (rereview dispositions override earlier findings). Stale reviews do not gate the current output. */
+export function openSevere(reviews, sourceHash) {
+  const fresh = new Set(freshStages(reviews, sourceHash));
+  const disp = new Map((fresh.has('rereview') ? reviews.rereview.dispositions : []).map((d) => [d.id, d.status]));
+  const all = ['blind', 'context'].filter((s) => fresh.has(s)).flatMap((s) => reviews[s].findings);
+  const rr = fresh.has('rereview') ? reviews.rereview.findings : [];
   return [...all.filter((f) => !['fixed', 'wontfix'].includes(disp.get(f.id))), ...rr].filter((f) => ['BLOCKER', 'HIGH'].includes(f.severity) && disp.get(f.id) !== 'fixed');
 }

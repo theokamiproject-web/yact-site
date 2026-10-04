@@ -7,12 +7,22 @@ import { loadIssue } from './load.mjs';
 import { sourceHash } from './build.mjs';
 import { analyzeRhythm, rhythmMarkdown, computeFingerprint } from './analysis.mjs';
 import { loadRegistry } from './registry.mjs';
-import { reviewTemplate, refreshAuto, loadReviews, checkReviews, openSevere, STAGES } from './critic.mjs';
+import { reviewTemplate, loadReviews, checkReviews, openSevere, isAuthored, archiveReviews, STAGES } from './critic.mjs';
 
 const rel = (p) => path.relative(REPO_ROOT, p);
 
-export async function prepareCritic(id, { reset = false, log = console.log } = {}) {
+/**
+ * Review files are an AUDIT RECORD, not build artifacts. They are created once from a template and never overwritten:
+ * `reset` refuses when any stage holds authored work unless `force` is given, and `force` archives first.
+ */
+export async function prepareCritic(id, { reset = false, force = false, log = console.log } = {}) {
   const out = outDir(id);
+  const reviewsDirEarly = path.join(issueDir(id), 'reviews');
+  if (reset) {
+    const authored = STAGES.map((s) => path.join(reviewsDirEarly, `critic-${s}.md`)).filter((f) => fs.existsSync(f) && isAuthored(fs.readFileSync(f, 'utf8')));
+    if (authored.length && !force) throw new Error(`refusing --reset: ${authored.map((f) => path.basename(f)).join(', ')} contain review work (status/findings/scores). Reviews are an audit record. Re-run with --force to archive them to reviews/archive/<timestamp>/ and start from empty templates.`);
+    if (authored.length) log(`  archived ${authored.length} review file(s) to ${rel(archiveReviews(reviewsDirEarly, STAGES.map((s) => path.join(reviewsDirEarly, `critic-${s}.md`)).concat(path.join(reviewsDirEarly, 'auto-findings.snapshot.json'))))}`);
+  }
   const mxFile = path.join(out, 'metrics.json');
   if (!fs.existsSync(mxFile)) throw new Error(`no metrics.json. Run: npm run publication:render -- ${id}`);
   const model = loadIssue(id);
@@ -47,16 +57,22 @@ export async function prepareCritic(id, { reset = false, log = console.log } = {
   fs.writeFileSync(path.join(ctx, 'articles.json'), JSON.stringify(Object.values(model.articles).map((a) => ({ id: a.meta.id, title: a.meta.title, type: a.meta.type, priority: a.meta.priority, target_pages: a.meta.target_pages })), null, 2));
   fs.writeFileSync(path.join(ctx, 'CONTEXT.md'), `# Context pack — ${model.issue.title}\n\nblind pack に加えて以下を参照してよい: editorial.yaml（編集意図）, flatplan.yaml（台割と各ページのnotes）, fingerprint.json（Publication Fingerprint の機械計測部分）, rhythm.md（リズム計測と自動検出）, preflight.md（あれば）。\n\n注意: 記事本文の校正はProofreaderの担当。批評は誌面の読みやすさ・リズム・一貫性・意図との整合に限る。\n`);
 
-  // --- templates (never overwrite authored reviews) + AUTO refresh
-  const reviewsDir = path.join(issueDir(id), 'reviews');
+  // --- pack identity: reviews bind to this exact output (source_hash)
+  const hash = sourceHash(model);
+  fs.writeFileSync(path.join(pack, 'PACK.json'), JSON.stringify({ issue: id, source_hash: hash, generated_at: new Date().toISOString(), note: 'copy source_hash into the review front matter' }, null, 2));
+
+  // --- templates: created only when missing (or reset, which is guarded above). Generated numbers never go into authored files.
+  const reviewsDir = reviewsDirEarly;
   fs.mkdirSync(reviewsDir, { recursive: true });
   const snapFile = path.join(reviewsDir, 'auto-findings.snapshot.json');
   if (!fs.existsSync(snapFile) || reset) fs.writeFileSync(snapFile, JSON.stringify(rhythm.auto_findings, null, 2));
-  const auto = { generated_at: new Date().toISOString(), current: rhythm.auto_findings, snapshot: JSON.parse(fs.readFileSync(snapFile, 'utf8')) };
+  const snap = JSON.parse(fs.readFileSync(snapFile, 'utf8'));
+  const key = (f) => `${f.category}|${f.problem.replace(/\d+/g, '#')}|${f.pages.join(',')}`;
+  const nowK = new Set(rhythm.auto_findings.map(key)), wasK = new Set(snap.map(key));
+  fs.writeFileSync(path.join(ctx, 'auto-diff.md'), ['# Auto findings: diff against the first pack (reviews/auto-findings.snapshot.json)', '', ...snap.filter((f) => !nowK.has(key(f))).map((f) => `- RESOLVED ${f.id} ${f.problem}`), ...rhythm.auto_findings.filter((f) => !wasK.has(key(f))).map((f) => `- NEW ${f.id} [${f.severity}] ${f.problem}`), ...rhythm.auto_findings.filter((f) => wasK.has(key(f))).map((f) => `- STILL ${f.id} [${f.severity}] ${f.problem}`), ''].join('\n'));
   for (const s of STAGES) {
     const f = path.join(reviewsDir, `critic-${s}.md`);
-    if (!fs.existsSync(f) || reset) fs.writeFileSync(f, reviewTemplate(s, model.issue, auto));
-    else fs.writeFileSync(f, refreshAuto(fs.readFileSync(f, 'utf8'), s, auto));
+    if (!fs.existsSync(f) || reset) fs.writeFileSync(f, reviewTemplate(s, model.issue));
   }
   log(`  review pack: ${rel(pack)}`);
   log(`  rhythm: ${rel(path.join(out, 'rhythm.md'))} (${rhythm.auto_findings.length} auto finding(s)); fingerprint: ${rel(path.join(out, 'fingerprint.json'))}`);
@@ -68,14 +84,16 @@ export function checkCritic(id, { log = console.log } = {}) {
   const model = loadIssue(id);
   const reviewsDir = path.join(issueDir(id), 'reviews');
   const reviews = loadReviews(reviewsDir);
-  const { problems, pending, report } = checkReviews(reviews, model.issue);
+  const hash = (() => { try { return sourceHash(model); } catch { return undefined; } })();
+  const { problems, pending, stale, report } = checkReviews(reviews, model.issue, { sourceHash: hash });
   fs.mkdirSync(outDir(id), { recursive: true });
   fs.writeFileSync(path.join(outDir(id), 'critic-report.json'), JSON.stringify(report, null, 2));
   for (const p of pending) log(`  PENDING  ${p}`);
+  for (const p of stale) log(`  STALE    ${p}`);
   for (const p of problems) log(`  INVALID  ${p}`);
-  const severe = openSevere(reviews);
+  const severe = openSevere(reviews, hash);
   for (const f of severe) log(`  OPEN ${f.severity} ${f.id} p${f.pages.join(',')} ${f.title}`);
   log(`  critic-report.json: ${rel(path.join(outDir(id), 'critic-report.json'))}`);
-  return { problems, pending, severe, report };
+  return { problems, pending, stale, severe, report };
 }
 

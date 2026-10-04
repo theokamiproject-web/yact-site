@@ -6,13 +6,13 @@ import { prepareCritic, checkCritic } from './lib/critic-run.mjs';
 const { positional, flags } = parseArgs(process.argv.slice(2));
 const id = positional[0];
 if (!id) {
-  console.error('usage: npm run publication:critic -- <issue-id> [--check] [--reset]');
+  console.error('usage: npm run publication:critic -- <issue-id> [--check] [--reset [--force]]');
   process.exit(2);
 }
 try {
-  if (!flags.check) await prepareCritic(id, { reset: !!flags.reset });
+  if (!flags.check) await prepareCritic(id, { reset: !!flags.reset, force: !!flags.force });
   const r = checkCritic(id);
-  console.log(`critic ${id}: ${r.pending.length ? `${r.pending.length} stage(s) pending (MANUAL: reviews not done)` : 'all stages complete'}, ${r.problems.length} structural problem(s), ${r.severe.length} open BLOCKER/HIGH`);
+  console.log(`critic ${id}: ${r.pending.length ? `${r.pending.length} stage(s) pending (MANUAL: reviews not done)` : 'all stages complete'}${r.stale.length ? `, ${r.stale.length} STALE (bound to an older output)` : ''}, ${r.problems.length} structural problem(s), ${r.severe.length} open BLOCKER/HIGH`);
   process.exit(r.problems.length ? 1 : 0);
 } catch (e) {
   console.error(`critic failed: ${e.message}`);

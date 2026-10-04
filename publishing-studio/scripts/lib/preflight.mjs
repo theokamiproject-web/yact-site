@@ -9,7 +9,7 @@ import { outDir, issueDir } from './paths.mjs';
 import { loadIssue } from './load.mjs';
 import { validateModel } from './validate-model.mjs';
 import { sourceHash } from './build.mjs';
-import { loadReviews, openSevere } from './critic.mjs';
+import { loadReviews, openSevere, freshStages } from './critic.mjs';
 import { issueBoundary, overrideRequested } from './boundary.mjs';
 import { loadRegistry } from './registry.mjs';
 import { densityFindings } from './density.mjs';
@@ -178,11 +178,14 @@ export async function runPreflight(id) {
 
   // ---- review gates
   const reviews = loadReviews(path.join(issueDir(id), 'reviews'));
-  const complete = Object.values(reviews).filter((r) => r.meta.status === 'complete').length;
-  const severe = openSevere(reviews);
-  if (!Object.keys(reviews).length || !complete) add('P27', 'Publication Critic (blind/context/rereview)', 'MANUAL CHECK', 'critic reviews not completed. Run npm run publication:critic -- ' + id + ' and have publication-critic fill critic-*.md');
-  else if (severe.length) add('P27', 'Publication Critic (blind/context/rereview)', 'FAIL', `open BLOCKER/HIGH: ${severe.map((f) => `${f.id}(${f.severity})`).join(', ')}`);
-  else add('P27', 'Publication Critic (blind/context/rereview)', complete < 3 ? 'WARNING' : 'PASS', `${complete}/3 stages complete, no open BLOCKER/HIGH${complete < 3 ? '; rereview not done' : ''}`);
+  const completeAll = Object.entries(reviews).filter(([, r]) => r.meta.status === 'complete').map(([k]) => k);
+  const fresh = freshStages(reviews, hash ?? undefined);
+  const severe = openSevere(reviews, hash ?? undefined);
+  const staleStages = completeAll.filter((k) => !fresh.includes(k));
+  if (!completeAll.length) add('P27', 'Publication Critic (blind/context/rereview)', 'MANUAL CHECK', 'critic reviews not completed. Run npm run publication:critic -- ' + id + ' and have publication-critic fill critic-*.md');
+  else if (!fresh.length) add('P27', 'Publication Critic (blind/context/rereview)', 'MANUAL CHECK', `reviews exist (${staleStages.join(', ')}) but they are not bound to the current output (missing or different source_hash): they describe an earlier version. A new independent review is required.`);
+  else if (severe.length) add('P27', 'Publication Critic (blind/context/rereview)', 'FAIL', `open BLOCKER/HIGH in the review of the current output: ${severe.map((f) => `${f.id}(${f.severity})`).join(', ')}`);
+  else add('P27', 'Publication Critic (blind/context/rereview)', fresh.length < 3 ? 'WARNING' : 'PASS', `${fresh.length}/3 stages complete for the current output, no open BLOCKER/HIGH${fresh.length < 3 ? '; rereview not done' : ''}${staleStages.length ? `; stale (ignored): ${staleStages.join(', ')}` : ''}`);
   const pr = path.join(issueDir(id), 'reviews', 'proofread.md');
   const prDone = fs.existsSync(pr) && /status:\s*complete/.test(fs.readFileSync(pr, 'utf8'));
   add('P28', 'Proofreader pass', prDone ? 'PASS' : 'MANUAL CHECK', prDone ? 'reviews/proofread.md is complete' : 'no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified');

@@ -9,16 +9,17 @@ const finding = (id, sev = 'HIGH', pages = '6, 7') => `### ${id} [${sev}] visual
 const rev = (stage, md) => ({ file: stage, ...parseReview(md) });
 
 test('template is pending, has all categories and the three required sections', () => {
-  const md = reviewTemplate('blind', issue, null);
+  const md = reviewTemplate('blind', issue);
   const r = parseReview(md);
   assert.equal(r.meta.status, 'pending');
   assert.deepEqual(Object.keys(r.scores).sort(), [...CATEGORIES].sort());
-  assert.match(md, /AUTO:BEGIN/);
+  assert.ok('source_hash' in r.meta, 'template carries the source_hash binding field');
+  assert.doesNotMatch(md, /generated:|AUTO:BEGIN/, 'no generated text inside an authored file');
   assert.match(md, /Emergent fingerprint/);
 });
 
 test('pending stages are reported as pending, not as problems', () => {
-  const reviews = Object.fromEntries(['blind', 'context', 'rereview'].map((s) => [s, rev(s, reviewTemplate(s, issue, null))]));
+  const reviews = Object.fromEntries(['blind', 'context', 'rereview'].map((s) => [s, rev(s, reviewTemplate(s, issue))]));
   const { problems, pending } = checkReviews(reviews, issue);
   assert.equal(pending.length, 3);
   assert.deepEqual(problems, []);
