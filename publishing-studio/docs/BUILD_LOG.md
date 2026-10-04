@@ -20,7 +20,7 @@
 - bleed 3mm・`marks: crop`・日本語フォント埋め込みを煙テストで確認後、`build.mjs` に統合。`@page` は `issue.yaml` から生成。`build.json` にソースハッシュを記録（PDFの陳腐化を preflight が検出）。
 
 ## Phase 5/6 — Layout components / TEST ISSUE 01
-- 15 component（全variant 計33）。A5 16p 中綴じのサンプルを作成（画像はSVGから生成、本文は架空の日本語ダミー）。
+- 15 component（全variant 計37）。A5 16p 中綴じのサンプルを作成（画像はSVGから生成、本文は架空の日本語ダミー）。
 - **発見した問題と修正**: ①テーマの `.page h1` が component の見出しサイズ指定に勝っていた → ベース規則を `:where(.page)` に。②文字数容量式が実測と乖離 → 行数ベースの式に作り直し、`fit_fill`（DOM実測）で校正（見積りと実測の差 ≲10%）。③Q&A の Q が頁末に孤立 → Q は A と一緒に送る。④YAMLの未クォート `: ` を template で踏み、validate が検出。
 
 ## Phase 7 — render / contact sheet
