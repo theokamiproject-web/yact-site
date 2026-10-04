@@ -205,3 +205,19 @@ def test_comma_separated_short_repetition_is_review_only():
     fs = hal.detect_loops([T(0, "たまたま、たまたま、たまたま、たまたま", 0, 5)])
     assert fs and not high(fs) and all(f.action == "review" for f in fs)
     assert high(hal.detect_loops([T(0, "奥を" * 8, 0, 5)]))               # 句読点のない機械的な反復はHIGHのまま
+
+
+@pytest.mark.parametrize("text", ["っはぁっ" * 6, "はぁっはぁっはぁっはぁっ", "あぁあぁあぁあぁ", "ひゃはははははははは", "うぅうぅうぅうぅ", "おぉおぉおぉおぉ", "わぁわぁわぁわぁ", "ハァッハァッハァッハァッ"])
+def test_laughter_with_small_kana_is_non_speech_not_high(text):
+    # Track-81 の実音声: 「っはぁっ」が小書き「ぁ」未対応のためHIGH（自動不採用）になっていた
+    turns = [T(0, "そうですよね。" + text, 0, 8)]
+    fs = hal.detect(turns, audio_dur=30.0)
+    assert not high(fs) and all(f.action == "review" for f in fs)
+    assert any(f.confidence == NON_SPEECH for f in fs)
+    hal.apply_rejections(turns, fs)
+    assert turns[0]["reject_ops"] == []
+
+
+def test_small_kana_set_is_systematic_and_does_not_make_words_vocal():
+    assert all(hal.is_vocal(c) for c in "ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ")
+    assert hal.is_vocal("っはぁっ") and hal.is_vocal("あぁ") and not hal.is_vocal("じゃあ") and not hal.is_vocal("ちょっと")
