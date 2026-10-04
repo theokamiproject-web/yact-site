@@ -24,6 +24,6 @@
     "publication:critic": "node publishing-studio/scripts/critic-pack.mjs",
     "publication:preflight": "node publishing-studio/scripts/preflight.mjs",
     "publication:all": "node publishing-studio/scripts/all.mjs",
-    "publication:test": "node --test publishing-studio/tests/"
+    "publication:test": "node --test \"publishing-studio/tests/*.test.mjs\""
   }
 }

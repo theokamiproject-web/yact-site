@@ -10,11 +10,11 @@
   text-align: justify;
   text-justify: inter-character;
 }
-.page h1, .page h2, .page h3, .page h4 { margin: 0; font-weight: 700; text-align: left; font-feature-settings: "palt"; text-wrap: balance; }
-.page h1 { font-family: var(--font-heading); font-size: var(--fs-h1); line-height: var(--lh-tight); letter-spacing: -0.01em; }
-.page h2 { font-family: var(--font-heading); font-size: var(--fs-h2); line-height: var(--lh-heading); }
-.page h3 { font-family: var(--font-heading); font-size: var(--fs-h3); line-height: var(--lh-heading); }
-.page p { margin: 0; }
+:where(.page) :is(h1, h2, h3, h4) { margin: 0; font-weight: 700; text-align: left; font-feature-settings: "palt"; text-wrap: balance; }
+:where(.page) h1 { font-family: var(--font-heading); font-size: var(--fs-h1); line-height: var(--lh-tight); letter-spacing: -0.01em; }
+:where(.page) h2 { font-family: var(--font-heading); font-size: var(--fs-h2); line-height: var(--lh-heading); }
+:where(.page) h3 { font-family: var(--font-heading); font-size: var(--fs-h3); line-height: var(--lh-heading); }
+:where(.page) p { margin: 0; }
 
 .kicker { font-family: var(--font-heading); font-size: var(--fs-small); font-weight: 700; letter-spacing: var(--tracking-label); color: var(--color-accent); text-align: left; }
 .deck { font-family: var(--font-heading); font-size: var(--fs-lead); line-height: 1.7; font-weight: 500; text-align: left; font-feature-settings: "palt"; }

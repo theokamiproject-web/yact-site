@@ -1,0 +1,18 @@
+# 号の基本情報。サイズ・綴じ・断ち落としはここが唯一の正（CSSに自動反映）。
+id: issue-template        # new-issue が書き換える
+title: 新しい号のタイトル
+subtitle: サブタイトル
+issue_number: 1
+date: 2026年10月
+publisher: 発行者名
+theme: base               # themes/<name>。base は常に先に読み込まれる
+# theme_overrides:        # この号だけ色などを上書き（CSSカスタムプロパティ）
+#   --color-accent: "#c8452d"
+format: A5
+width: 148                # mm（仕上がり）
+height: 210
+pages: 8                  # 表紙・裏表紙を含む総ページ数。中綴じは4の倍数
+binding: saddle-stitch    # saddle-stitch | perfect | none
+bleed: 3                  # mm
+language: ja
+running_header: 新しい号のタイトル

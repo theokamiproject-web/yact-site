@@ -22,7 +22,7 @@ function scene({ w, h, sky, sea, sun, hills, seed, horizon = 0.58, person = fals
     const x = w * (0.12 + 0.22 * i + r() * 0.05), y = hy + h * (0.04 + r() * 0.1), s = w * (0.035 + r() * 0.02);
     return `<path d="M${x} ${y} h${s * 2} l${-s * 0.4} ${s * 0.5} h${-s * 1.2} Z" fill="#14202a"/><rect x="${x + s}" y="${y - s * 1.4}" width="${s * 0.06}" height="${s * 1.4}" fill="#14202a"/>`;
   }).join('');
-  const lamps = lanterns ? Array.from({ length: 9 }, (_, i) => `<circle cx="${w * (0.08 + i * 0.105)}" cy="${h * (0.2 + 0.03 * Math.sin(i))}" r="${w * 0.018}" fill="#ffb347" opacity="0.9"/>`).join('') : '';
+  const lamps = lanterns ? Array.from({ length: 9 }, (_, i) => `<circle cx="${w * (0.08 + i * 0.105)}" cy="${h * (0.44 + 0.025 * Math.sin(i * 1.7))}" r="${w * 0.018}" fill="#ffb347" opacity="0.9"/>`).join('') : '';
   const ppl = person ? `<g fill="#1a1a1c"><circle cx="${w * 0.5}" cy="${h * 0.42}" r="${w * 0.13}"/><path d="M${w * 0.12} ${h} Q${w * 0.15} ${h * 0.64} ${w * 0.5} ${h * 0.62} Q${w * 0.85} ${h * 0.64} ${w * 0.88} ${h} Z"/></g>` : '';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
 <defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>

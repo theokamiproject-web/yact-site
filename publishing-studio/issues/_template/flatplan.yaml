@@ -1,0 +1,11 @@
+# 台割。pages: [n] は1ページ、[n, n+1] は見開き（見開きは偶数ページ始まり）。
+# 全ページ(1..issue.pages)を1回ずつ割り当てる。layout と variant は layouts/*/index.mjs を参照。
+pages:
+  - { pages: [1], article: cover,        layout: cover,      variant: typo,   visual_intensity: 4, text_density: 1, image_density: 1 }
+  - { pages: [2], article: contents,     layout: contents,   variant: list,   visual_intensity: 2, text_density: 3, image_density: 1 }
+  - { pages: [3], article: editors-note, layout: column,     variant: box,    visual_intensity: 2, text_density: 3, image_density: 1 }
+  - { pages: [4], article: essay-1,      layout: essay,      variant: opener, visual_intensity: 2, text_density: 4, image_density: 1 }
+  - { pages: [5], article: quote-1,      layout: quote-page, variant: center, visual_intensity: 3, text_density: 1, image_density: 1 }
+  - { pages: [6], article: column-1,     layout: column,     variant: plain,  visual_intensity: 2, text_density: 4, image_density: 1 }
+  - { pages: [7], article: colophon,     layout: colophon,   variant: with-credits, visual_intensity: 1, text_density: 3, image_density: 1 }
+  - { pages: [8], article: back-cover,   layout: cover,      variant: back,   visual_intensity: 3, text_density: 1, image_density: 1 }

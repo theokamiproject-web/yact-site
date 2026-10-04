@@ -1,0 +1,6 @@
+# Photo Editor 用メタデータ（任意）。画像ファイルをこのフォルダに置き、必要なら分類を書く。
+# role: hero | portrait | inline | transition | sequence | decorative
+# focal: [x, y] 0〜1。トリミングで残したい中心。
+# 例:
+# harbor.jpg: { role: hero, orientation: landscape, focal: [0.6, 0.5], alt: 港の夕景 }
+{}

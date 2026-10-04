@@ -46,8 +46,10 @@ export function allocate(blocks, caps) {
     const last = i === caps.length - 1;
     while (queue.length) {
       const b = queue[0];
+      // never strand a question at the foot of a page: it travels with its answer
       const cost = blockCost(b);
-      if (last || used + cost <= cap) {
+      const needed = cost + (b.type === 'q' && queue[1]?.type === 'a' ? blockCost(queue[1]) : 0);
+      if (last || used + needed <= cap) {
         out.push(queue.shift());
         used += cost;
         continue;

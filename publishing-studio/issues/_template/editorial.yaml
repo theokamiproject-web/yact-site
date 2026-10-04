@@ -1,0 +1,12 @@
+# 編集方針。Editor / Art Director / Critic が判断の拠り所にする。
+concept: この号で何を伝えるか（1〜2文）
+audience: 誰が読むか
+editorial_voice: "文体・語り口（例：静かで具体的。誇張しない）"
+mood: 空気感のキーワード
+pacing: varied            # slow | steady | fast | varied
+density: medium           # low | medium | high
+keywords: [キーワード1, キーワード2]
+# fingerprint_target:     # 任意: 意図する誌面の特徴（Criticが検査に使う）
+#   max_same_layout_run: 2
+#   min_intensity_range: 40
+#   motif: 繰り返したいモチーフ

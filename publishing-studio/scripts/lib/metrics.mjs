@@ -6,7 +6,8 @@ export async function collectMetrics(browser, webDir, issue) {
   const page = await browser.newPage({ viewport: { width: 1000, height: 1400 }, deviceScaleFactor: 1 });
   await page.goto(pathToFileURL(path.join(webDir, 'index.html')).href, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
-  const result = await page.evaluate(({ widthMm, heightMm, bleedMm, safeMm }) => {
+  const tokens = await page.evaluate(() => Object.fromEntries(['--columns', '--gutter', '--baseline', '--margin-top', '--margin-bottom', '--margin-inner', '--margin-outer', '--font-body', '--font-heading', '--font-display', '--color-paper', '--color-ink', '--color-accent', '--color-accent-2', '--fs-body', '--fs-caption', '--fs-h1', '--fs-display'].map((k) => [k, getComputedStyle(document.documentElement).getPropertyValue(k).trim()])));
+  const pages = await page.evaluate(({ widthMm, heightMm, bleedMm, safeMm }) => {
     const GW = 60, GH = 84;
     const out = [];
     for (const pg of document.querySelectorAll('.page')) {
@@ -35,15 +36,34 @@ export async function collectMetrics(browser, webDir, issue) {
       }
       m.text_chars = chars;
       m.fonts = [...fonts];
+      m.min_font_pt = textRects.length ? +(Math.min(...textRects.map((t) => t.fs)) / 0.3528).toFixed(1) : null;
 
       // images
       const images = [];
+      // visible rect = element rect clipped by ancestors with overflow != visible (below .page; the screen-only .page clip is ignored)
+      const visible = (el) => {
+        let r = el.getBoundingClientRect();
+        let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+        for (let a = el.parentElement; a && a !== pg; a = a.parentElement) {
+          if (getComputedStyle(a).overflow === 'visible') continue;
+          const ar = a.getBoundingClientRect();
+          box = { left: Math.max(box.left, ar.left), top: Math.max(box.top, ar.top), right: Math.min(box.right, ar.right), bottom: Math.min(box.bottom, ar.bottom) };
+        }
+        return { left: box.left, top: box.top, width: Math.max(0, box.right - box.left), height: Math.max(0, box.bottom - box.top) };
+      };
+      const bleedShort = [];
       for (const img of pg.querySelectorAll('img')) {
         const r = img.getBoundingClientRect();
-        const rr = rel(r);
+        const rr = rel(visible(img));
         const nw = img.naturalWidth, nh = img.naturalHeight;
         const scale = nw ? Math.max(r.width / nw, r.height / nh) : 0; // object-fit: cover
-        images.push({ file: img.dataset.image ?? img.getAttribute('src'), ok: img.complete && nw > 0, natural: [nw, nh], rect_mm: rr, ppi: scale ? Math.round((k * 25.4) / scale) : 0 });
+        const file = img.dataset.image ?? img.getAttribute('src');
+        images.push({ file, ok: img.complete && nw > 0, natural: [nw, nh], rect_mm: rr, ppi: scale ? Math.round((k * 25.4) / scale) : 0 });
+        // an edge that sits on the trim line (not inside the page, not extended into the bleed) is "short". The spine-side edge never needs bleed.
+        const spine = pg.dataset.side === 'left' ? 'right' : pg.dataset.side === 'right' ? 'left' : null;
+        const e = { left: rr.x, top: rr.y, right: widthMm - (rr.x + rr.w), bottom: heightMm - (rr.y + rr.h) };
+        const short = Object.entries(e).filter(([edge, v]) => edge !== spine && v > -bleedMm + 0.5 && v < 0.5).map(([edge]) => edge);
+        if (short.length) bleedShort.push({ file, edges: short });
       }
       m.images = images;
 
@@ -127,8 +147,9 @@ export async function collectMetrics(browser, webDir, issue) {
       }
       for (const im of images) {
         const r = im.rect_mm;
-        if (r.x < -lim || r.y < -lim || r.x + r.w > widthMm + lim + 0.01 && !pg.dataset.spread || r.y + r.h > heightMm + lim) outside.push({ kind: 'image-beyond-bleed', file: im.file });
+        if (r.x < -lim || r.y < -lim || r.x + r.w > widthMm + lim || r.y + r.h > heightMm + lim) outside.push({ kind: 'image-beyond-bleed', file: im.file });
       }
+      m.bleed_short = bleedShort;
       m.overflow = overflow;
       m.outside = outside;
       // safe area: text closer than safeMm to the trim edge (folio/runhead excluded by construction)
@@ -143,7 +164,7 @@ export async function collectMetrics(browser, webDir, issue) {
     return out;
   }, { widthMm: issue.width, heightMm: issue.height, bleedMm: issue.bleed, safeMm: 5 });
   await page.close();
-  return result;
+  return { pages, tokens };
 }
 
 /** Composite 0..100 "visual intensity" from measured values (not from the flatplan). */

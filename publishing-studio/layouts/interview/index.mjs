@@ -11,10 +11,10 @@ export default {
       required: (v) => (v === 'portrait-left' ? ['title', 'portrait', 'interviewee'] : ['title', 'interviewee']),
       optional: ['kicker', 'deck', 'portrait', 'interviewee_role', 'author'],
       captions: true,
-      text: { capacity: (v, i) => frameChars({ w: liveBox(i).w, h: v === 'portrait-left' ? 46 : 88 }) },
+      text: { capacity: (v, i) => frameChars({ w: liveBox(i).w, h: v === 'portrait-left' ? 58 : 88 }) },
       render({ inputs: i, variant, text, model }) {
         if (variant === 'portrait-left') {
-          return [{ html: `<div class="iv-portrait">${img(model, i.portrait)}</div>
+          return [{ chrome: 'folio', html: `<div class="iv-portrait">${img(model, i.portrait)}</div>
 <div class="live iv-o"><div class="c-4-6 iv-side"><div><p class="kicker">${esc(i.kicker ?? 'INTERVIEW')}</p>${who(i)}</div>${captionHtml(model, i.portrait)}</div>
 <h1 class="iv-title c-all">${esc(i.title)}</h1>${when(i.deck, `<p class="deck c-all iv-deck">${esc(i.deck)}</p>`)}<div class="iv-text c-all fit">${body(text)}</div></div>` }];
         }

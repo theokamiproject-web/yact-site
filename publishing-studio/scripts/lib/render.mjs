@@ -42,7 +42,7 @@ export async function renderPages(id, { dpi = 110, log = console.log } = {}) {
 
   const browser = await launch();
   try {
-    const metrics = await collectMetrics(browser, path.join(out, 'web'), model.issue);
+    const { pages: metrics, tokens } = await collectMetrics(browser, path.join(out, 'web'), model.issue);
     for (const m of metrics) {
       const f = files[m.n - 1];
       if (f) {
@@ -52,7 +52,7 @@ export async function renderPages(id, { dpi = 110, log = console.log } = {}) {
       }
       m.measured_intensity = measuredIntensity(m);
     }
-    fs.writeFileSync(path.join(out, 'metrics.json'), JSON.stringify({ issue: id, generated_at: new Date().toISOString(), source_hash: sourceHash(model), page_count_png: files.length, pages: metrics }, null, 2));
+    fs.writeFileSync(path.join(out, 'metrics.json'), JSON.stringify({ issue: id, generated_at: new Date().toISOString(), source_hash: sourceHash(model), page_count_png: files.length, tokens, pages: metrics }, null, 2));
 
     const sheets = await contactSheets(browser, out, model.issue, files, metrics);
     log(`  contact sheets: ${sheets.map((s) => path.basename(s)).join(', ')}`);
