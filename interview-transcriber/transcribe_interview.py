@@ -58,6 +58,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--num-speakers", type=int)
     p.add_argument("--min-speakers", type=int)
     p.add_argument("--max-speakers", type=int)
+    p.add_argument("--diarize-chunk-min-audio-min", type=float, default=15.0, metavar="MIN",
+                   help="音声がこの長さ（分）を超えたら、話者分離を再開可能なチャンク方式にする（既定 %(default)s。短い音声は従来どおり一括）")
+    p.add_argument("--diarize-chunk-min", type=float, default=5.0, metavar="MIN", help="チャンク方式の1チャンクの長さ（分、既定 %(default)s）")
+    p.add_argument("--diarize-chunk-overlap-sec", type=float, default=30.0, metavar="SEC", help="チャンクの重なり（秒、既定 %(default)s）")
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
     g = p.add_mutually_exclusive_group()  # 初期プロンプトは標準なし。次の2つは同時指定不可（エラー）
@@ -191,6 +195,7 @@ def main(argv=None) -> int:
     if diar:
         log("[話者分離] キャッシュを使用")
         diar_segments = diar["segments"]
+        notes.extend((diar.get("chunk_merge") or {}).get("notes") or [])
     elif a.no_diarize or a.skip_transcription:
         diar_segments = None
         if a.no_diarize:
@@ -201,9 +206,16 @@ def main(argv=None) -> int:
         try:
             wav = wav or wx.preprocess(a.audio, a.temp_dir, cfg.normalize)
             log(f"[話者分離] 実行中 ({dmodel})")
-            diar_segments = diarization.run_diarization(
-                wav, device, os.environ.get("HF_TOKEN"), a.num_speakers, a.min_speakers, a.max_speakers, dmodel)
-            wx.cache_save(f_diar, {"key": dkey, "audio_fp": fp, "segments": diar_segments})
+            diar_segments, chunk_info = diarization.diarize(
+                wav, device, os.environ.get("HF_TOKEN"), a.num_speakers, a.min_speakers, a.max_speakers, dmodel,
+                duration=duration, chunk_dir=cdir / "diarization_chunks", fingerprint=fp,
+                auto_threshold=a.diarize_chunk_min_audio_min * 60, chunk_sec=a.diarize_chunk_min * 60,
+                overlap_sec=a.diarize_chunk_overlap_sec)
+            saved = {"key": dkey, "audio_fp": fp, "segments": diar_segments}
+            if chunk_info:
+                saved["chunk_merge"] = chunk_info
+                notes.extend(chunk_info.get("notes") or [])
+            wx.cache_save(f_diar, saved)
         except Exception as e:  # noqa: BLE001 - 話者分離が失敗しても文字起こしは残す
             diar_segments = None
             notes.append(f"話者分離に失敗しました（{type(e).__name__}: {str(e)[:200]}）。話者は「{diarization.UNKNOWN_SPEAKER}」として出力しています。"

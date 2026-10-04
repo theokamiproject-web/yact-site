@@ -38,6 +38,63 @@ def run_diarization(wav: Path, device: str, hf_token: str | None,
             for r in df.itertuples()]
 
 
+def _load_pipeline(device: str, hf_token: str | None, model_name: str):
+    if not hf_token:
+        raise RuntimeError("HF_TOKEN が未設定です（.env に設定してください）。")
+    import whisperx
+    try:
+        from whisperx.diarize import DiarizationPipeline
+    except ImportError:  # 旧バージョン
+        DiarizationPipeline = whisperx.DiarizationPipeline
+    try:
+        return DiarizationPipeline(model_name=model_name, token=hf_token, device=device)
+    except TypeError:
+        return DiarizationPipeline(model_name=model_name, use_auth_token=hf_token, device=device)
+
+
+def make_chunk_diarizer(device: str, hf_token: str | None, model_name: str):
+    """チャンク用: パイプラインを1回だけ読み込み、(音声, 開始秒, 終了秒, max_speakers) → (segments, 埋め込み|None) を返す関数。"""
+    pipe = _load_pipeline(device, hf_token, model_name)
+
+    def run(audio, start, end, max_speakers):
+        emb = None
+        try:
+            out = pipe(audio, max_speakers=max_speakers, return_embeddings=True)
+        except TypeError:
+            out = pipe(audio, max_speakers=max_speakers)
+        if isinstance(out, tuple):
+            df, emb = out[0], out[1]
+        else:
+            df = out
+        segs = [{"start": float(r.start), "end": float(r.end), "speaker": str(r.speaker)} for r in df.itertuples()]
+        return segs, (emb or None)
+
+    return run
+
+
+def diarize(wav: Path, device: str, hf_token: str | None, num_speakers: int | None, min_speakers: int | None,
+            max_speakers: int | None, model_name: str | None, *, duration: float | None, chunk_dir: Path,
+            fingerprint: str | None, auto_threshold: float | None = None, chunk_sec: float | None = None,
+            overlap_sec: float | None = None) -> tuple[list[dict], dict | None]:
+    """標準は従来どおり一括の話者分離。音声が auto_threshold 秒（既定15分）より長いときだけ、再開可能なチャンク方式にする。
+    戻り値: (segments, チャンク方式の統合レポート|None)。"""
+    import diarization_chunks as dc
+    model_name = model_name or DEFAULT_DIARIZATION_MODEL
+    thr = dc.AUTO_THRESHOLD_SEC if auto_threshold is None else auto_threshold
+    if not duration or duration <= thr:
+        return run_diarization(wav, device, hf_token, num_speakers, min_speakers, max_speakers, model_name), None
+    import whisperx
+    dc.log(f"[話者分離] 長い音声（{duration / 60:.1f}分 > {thr / 60:.0f}分）のため、再開可能なチャンク方式で実行します"
+           f"（{(chunk_sec or dc.CHUNK_SEC) / 60:.1f}分×重なり{overlap_sec or dc.OVERLAP_SEC:.0f}秒）")
+    if num_speakers or min_speakers:
+        dc.log("[話者分離] 注意: チャンク方式では --num-speakers / --min-speakers はチャンクに渡しません（max のみ上限として使用）")
+    audio = whisperx.load_audio(str(wav))
+    fn = make_chunk_diarizer(device, hf_token, model_name)
+    return dc.run_chunked(audio, duration, fn, chunk_dir, fingerprint=fingerprint, model=model_name, max_speakers=max_speakers,
+                          num_speakers=num_speakers, min_speakers=min_speakers, chunk_sec=chunk_sec or dc.CHUNK_SEC,
+                          overlap_sec=overlap_sec or dc.OVERLAP_SEC)
+
+
 def load_speakers(path: Path | None) -> dict[str, str]:
     """speakers.yaml → {SPEAKER_00: 名前}。空・未指定なら {}。"""
     if not path or not Path(path).exists():
