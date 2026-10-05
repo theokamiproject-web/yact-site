@@ -27,6 +27,7 @@
     "publication:test": "node --test \"publishing-studio/tests/*.test.mjs\"",
     "publication:boundary": "node publishing-studio/scripts/boundary-check.mjs",
     "publication:install-hooks": "git config core.hooksPath .githooks",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "publication:mutation": "node publishing-studio/scripts/mutation.mjs"
   }
 }

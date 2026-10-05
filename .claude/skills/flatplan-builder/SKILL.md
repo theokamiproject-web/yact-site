@@ -13,6 +13,7 @@ pages:
 - `pages: [n]` 単ページ / `[n, n+1]` 見開き。**見開きは偶数ページ始まり**（中綴じ・無線綴じとも。1ページ目は右ページ単独）
 - 全ページ 1..`issue.pages` を**ちょうど1回**。中綴じは総ページ数が4の倍数
 - `visual_intensity` `text_density` `image_density`: 1–5。計画値。実測は `render` 後の `rhythm.md` で確認され、乖離が大きいと NOTE が出る
+- `intentional_sparse: true` + `notes`（理由必須）: 意図して本文が少ない頁の宣言。quote/divider/写真/cover/colophon は宣言不要
 - `slots`: そのページ限りの入力上書き（`image`, `images`, `hero_image`, `pull_quote`, `quote_source`, `facts`）
 
 ## リズム設計

@@ -33,5 +33,5 @@ description: 誌面のlayout componentを選び、組む。component一覧と入
 4. 本文あふれ（P19 FAIL）: ページ配分を変える／variantを容量の大きいものに／原稿を削る（Editorの判断）
 
 ## 新しい component/variant を足すとき
-`layouts/<family>/index.mjs` の `components[name]` に `variants{name:{pages}} defaultVariant required(variant) optional captions text?{capacity(variant,inputs)} render({inputs,variant,text,model})` を定義。render は `pages` 個の `{html, chrome:'full'|'folio'|'none', bg?, dark?}` を返す。全面画像は `.bleed` か 断ち落とし分(`--bleed`)をはみ出させる。CSS は同階層 `style.css` にトークンで書く。
+`layouts/<family>/index.mjs` の `components[name]` に `variants{name:{pages}} defaultVariant required(variant) optional captions text?:true render({inputs,variant,text,model,measure,tone})` を定義し、`layouts/_contracts.mjs` に**密度契約**を追加（無いとテストが落ちる）。本文の容量はコードに持たず、組版前の実測枠から決まる。CSS に mm の直値は書かず、`themes/base/tokens.css` のページ相対トークンを使う（テストが拒否）。画像上に柱/ノンブルが載る頁は `runheadOn`/`folioOn`（`tone()`）を返す。render は `pages` 個の `{html, chrome:'full'|'folio'|'none', bg?, dark?}` を返す。全面画像は `.bleed` か 断ち落とし分(`--bleed`)をはみ出させる。CSS は同階層 `style.css` にトークンで書く。
 新規 component を足したら `tests/` の component 網羅テストが自動で拾う。

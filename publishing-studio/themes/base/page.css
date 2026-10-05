@@ -45,6 +45,8 @@ html, body { margin: 0; padding: 0; }
 .page[data-bg="accent"] .runhead, .page[data-bg="accent"] .folio,
 .page[data-bg="accent-2"] .runhead, .page[data-bg="accent-2"] .folio,
 .page[data-on="dark"] .runhead, .page[data-on="dark"] .folio { color: var(--color-on-dark); opacity: 0.85; }
+.page[data-runhead-on="dark"] .runhead, .page[data-folio-on="dark"] .folio { color: var(--color-on-dark); opacity: 0.92; }
+.page[data-runhead-on="light"] .runhead, .page[data-folio-on="light"] .folio { color: var(--color-ink); opacity: 0.75; }
 .folio::before { content: ""; }
 
 /* screen preview: stacked sheets. Print (Vivliostyle) ignores this. */

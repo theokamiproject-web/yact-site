@@ -46,12 +46,19 @@ export function parseBlocks(body) {
   return blocks;
 }
 
-/** Lines available in a measured frame, and characters per line. Columns flow continuously; one line of slack per column. */
+/** Lines available in a measured frame, and characters per line. Columns flow continuously; one line of slack per column (multi-column). */
+/**
+ * Phrase-based line breaking (word-break: auto-phrase) and kinsoku push a few percent of characters to the next line,
+ * so a line is assumed to hold LINE_EFFICIENCY of its theoretical characters. Calibrated on the example issues; the
+ * measured text occupancy (metrics) is the authority and a test keeps every sample below 100 %.
+ */
+export const LINE_EFFICIENCY = 0.96;
+
 export function frameLines(f) {
   const colW = (f.w - (f.cols - 1) * f.gap) / f.cols;
-  const perLine = Math.max(1, Math.floor(colW / f.fs));
+  const perLine = Math.max(1, Math.floor((colW / f.fs) * LINE_EFFICIENCY));
   const perCol = Math.floor(f.h / f.lh);
-  return { perLine, lines: Math.max(0, f.cols * perCol - (f.cols > 1 ? f.cols - 1 : 0)), capacityChars: Math.max(0, f.cols * perCol * perLine) };
+  return { perLine, lines: Math.max(0, f.cols * perCol - (f.cols > 1 ? f.cols : 0)), capacityChars: Math.max(0, f.cols * perCol * perLine) };
 }
 
 /** Lines a block occupies when set in `perLine` characters per line (first-line indent of 1em on plain paragraphs). */

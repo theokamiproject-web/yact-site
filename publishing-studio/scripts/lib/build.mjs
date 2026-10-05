@@ -56,7 +56,7 @@ export async function buildWeb(id, { marks = false, log = console.log, allowPubl
   fail(findings);
   const reg = await loadRegistry();
   const { plan } = planText(model, reg, probe.frames);
-  const composed = await compose(model, { plan });
+  const composed = await compose(model, { plan, frames: probe.frames });
   const out = outDir(id);
   const web = path.join(out, 'web');
   await writeWeb(model, composed, web, { marks });

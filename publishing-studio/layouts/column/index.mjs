@@ -14,7 +14,7 @@ export default {
         const head = `<div class="c-all">${when(i.kicker, `<p class="kicker">${esc(i.kicker)}</p>`)}<h2 class="cl-title">${esc(i.title)}</h2>${byline(i)}</div>`;
         const im = when(has(i.image), `<div class="c-all">${fig(model, i.image, { imgStyle: 'height:var(--column-img-h)' })}</div>`);
         const inner = `${head}${im}<div class="c-all cl-text fit fit-auto">${body(text)}</div>`;
-        return [{ html: `<div class="live cl cl-${variant}">${variant === 'box' ? `<div class="tint-box c-all cl-box"><div class="cl-grid">${inner}</div></div>` : inner}</div>` }];
+        return [{ html: `<div class="live cl cl-${variant}${variant === 'box' ? ' cl-center' : ''}">${variant === 'box' ? `<div class="tint-box c-all cl-box"><div class="cl-grid">${inner}</div></div>` : inner}</div>` }];
       },
     },
     profile: {

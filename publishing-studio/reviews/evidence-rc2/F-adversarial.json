@@ -1,0 +1,345 @@
+{
+ "01-long-title": {
+  "expected": "validate/preflight should flag or layout should contain a very long headline without collision",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "warning:TEXT_PAGE_EMPTY@flatplan p8",
+    "warning:TEXT_MAY_OVERFLOW@flatplan p9",
+    "error:LAYOUT_OVERFLOW@p4 feature-opener/spread-bleed"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR LAYOUT_OVERFLOW: content already overflows the page with no body text (long headline, deck or caption?): text-outside-trim (p4 feature-opener/spread-bleed) | publication:all failed: validation failed; fix the errors above (npm run publication:validate -- adv-01-long-title)"
+ },
+ "02-short-body": {
+  "expected": "warnings (TEXT_PAGE_EMPTY/SPARSE); build ok",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_UNDERFILLED@flatplan p6",
+    "warning:TEXT_PAGE_EMPTY@flatplan p7",
+    "warning:TEXT_UNDERFILLED@flatplan p13",
+    "warning:TEXT_PAGE_EMPTY@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P17 blank pages: blank (no text/image, uniform pixels): p14. Set intentional_blank: true in the flatplan if deliberate | publication:all adv-02-short-body: preflight FAIL (PASS 21, WARNING 3, FAIL 1, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 313 font object(s) embedded, but 313 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P17 blank (no text/image, uniform pixels): p14. Set intentional_blank: true in the flatplan if deliberate",
+    "WARNING P30 p6 feature-body/two-col: text occupancy 0.014 < expected ≥0.6 for a \"first\" page of its article; content reach",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "03-long-body": {
+  "expected": "TEXT_MAY_OVERFLOW warning; preflight FAIL on clipped text",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_MAY_OVERFLOW@flatplan p7"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p7: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p7: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-tr",
+    "WARNING P21 text inside the safe margin on p7",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "04-no-image": {
+  "expected": "clear validation error (MISSING_INPUT)",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:MISSING_INPUT@flatplan p1",
+    "error:MISSING_INPUT@flatplan p4-5"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR MISSING_INPUT: cover/full requires \"hero_image\" (article \"cover\") [flatplan p1] |   ERROR MISSING_INPUT: feature-opener/spread-bleed requires \"hero_image\" (article \"harbor-theater\") [flatplan p4-5] | publication:all failed: validation failed"
+ },
+ "05-missing-image": {
+  "expected": "MISSING_ASSET error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:MISSING_ASSET@flatplan p4-5",
+    "error:MISSING_ASSET@flatplan p6",
+    "error:MISSING_ASSET@flatplan p7",
+    "error:MISSING_ASSET@articles/harbor-theater.md"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p4-5] |   ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p6] |   ERROR MISSING_ASSET: image \"nonexistent.jpg\" not found in images/ [flatplan p7] |   ERROR MISSING_ASSET: asset \"nonexistent.jpg\" listed in article \"harbor-theater\" not found in images/ [articles/harbor-theater.md]"
+ },
+ "06-extreme-portrait": {
+  "expected": "builds; extreme crop visible; preflight should warn about aspect/crop or ppi",
+  "validate": {
+   "exit": 0,
+   "findings": []
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P22 image resolution (effective ppi at placed size): min 65ppi (DOM-derived; ≥200 ok, <100 fail); <100: p7 stage-inline.jpg 65, p8 portrait-hamabe.jpg 70 | publication:all adv-06-extreme-portrait: preflight FAIL (PASS 22, WARNING 2, FAIL 1, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P22 min 65ppi (DOM-derived; ≥200 ok, <100 fail); <100: p7 stage-inline.jpg 65, p8 portrait-hamabe.jpg 70",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "07-extreme-landscape": {
+  "expected": "builds; extreme crop; low ppi flagged (hero 6000x200 on a 308mm spread is fine px-wise but 200px high)",
+  "validate": {
+   "exit": 0,
+   "findings": []
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P22 image resolution (effective ppi at placed size): min 36ppi (DOM-derived; ≥200 ok, <100 fail); <100: p4 harbor-hero.jpg 36, p5 harbor-hero.jpg 36, p11 tide-2.jpg 58 | publication:all adv-07-extreme-landscape: preflight FAIL (PASS 22, WARNING 2, FAIL 1, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P22 min 36ppi (DOM-derived; ≥200 ok, <100 fail); <100: p4 harbor-hero.jpg 36, p5 harbor-hero.jpg 36, p11 tide-2.jp",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "08-no-caption": {
+  "expected": "validate warning; preflight FAIL P05",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:MISSING_CAPTION@flatplan p4-5",
+    "warning:MISSING_CAPTION@flatplan p4-5",
+    "warning:MISSING_CAPTION@flatplan p6",
+    "warning:MISSING_CAPTION@flatplan p6",
+    "warning:MISSING_CAPTION@flatplan p7",
+    "warning:MISSING_CAPTION@flatplan p7"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P05 missing caption: no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) | publication:all adv-08-no-caption: prefligh",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "FAIL P05 no caption for \"harbor-hero.jpg\" (captions/*.yaml) / no caption for \"stage-inline.jpg\" (captions/*.yaml) / no ",
+    "WARNING P14 all 343 font object(s) embedded, but 343 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P30 p7 feature-body/two-col-image: content reaches only 66% of the live area (expected ≥68%)",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "09-long-caption": {
+  "expected": "long captions must not overflow/clip silently",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:LAYOUT_OVERFLOW@p5 feature-opener/spread-bleed"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR LAYOUT_OVERFLOW: content already overflows the page with no body text (long headline, deck or caption?): text-outside-trim (p5 feature-opener/spread-bleed) | publication:all failed: validation failed; fix the errors above (npm run publication:validate -- adv-09-long-caption)"
+ },
+ "10-unplaced-article": {
+  "expected": "ARTICLE_NOT_PLACED error, all.mjs exits non-zero",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:ARTICLE_NOT_PLACED@articles/night-road.md",
+    "error:TEXT_NOT_PLACED@articles/night-road.md"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_GAP: page 13 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 14 is not in the flatplan [flatplan.yaml] |   ERROR ARTICLE_NOT_PLACED: article \"night-road\" is not placed in the flatplan (set status: spiked to exclude) [articles/night-road.md] |   ERROR TEXT_NOT_PLACED: article \"night-road\" has body text but no text-capable layout in the flatplan [articles/night-r"
+ },
+ "11-duplicate-page": {
+  "expected": "FLATPLAN_OVERLAP + FLATPLAN_GAP",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_OVERLAP@flatplan p7",
+    "error:FLATPLAN_GAP@flatplan.yaml"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_OVERLAP: page 7 is placed twice [flatplan p7] |   ERROR FLATPLAN_GAP: page 6 is not in the flatplan [flatplan.yaml] | publication:all failed: validation failed"
+ },
+ "12-spread-parity": {
+  "expected": "SPREAD_PARITY error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:SPREAD_PARITY@flatplan p11-12",
+    "error:FLATPLAN_OVERLAP@flatplan p12",
+    "error:FLATPLAN_GAP@flatplan.yaml"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR SPREAD_PARITY: a spread must start on an even (left) page, got 11 [flatplan p11-12] |   ERROR FLATPLAN_OVERLAP: page 12 is placed twice [flatplan p12] |   ERROR FLATPLAN_GAP: page 10 is not in the flatplan [flatplan.yaml] | publication:all failed: validation failed"
+ },
+ "13a-pages-20": {
+  "expected": "FLATPLAN_GAP errors",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml",
+    "error:FLATPLAN_GAP@flatplan.yaml"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_GAP: page 17 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 18 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 19 is not in the flatplan [flatplan.yaml] |   ERROR FLATPLAN_GAP: page 20 is not in the flatplan [flatplan.yaml]"
+ },
+ "13b-pages-12": {
+  "expected": "FLATPLAN_RANGE errors",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:FLATPLAN_RANGE@flatplan p13",
+    "error:FLATPLAN_RANGE@flatplan p14",
+    "error:FLATPLAN_RANGE@flatplan p15",
+    "error:FLATPLAN_RANGE@flatplan p16"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR FLATPLAN_RANGE: page 13 exceeds issue.pages=12 [flatplan p13] |   ERROR FLATPLAN_RANGE: page 14 exceeds issue.pages=12 [flatplan p14] |   ERROR FLATPLAN_RANGE: page 15 exceeds issue.pages=12 [flatplan p15] |   ERROR FLATPLAN_RANGE: page 16 exceeds issue.pages=12 [flatplan p16]"
+ },
+ "14-theme-font-12pt": {
+  "expected": "build ok; text overflow must be detected (P19 FAIL) or capacity estimate must adapt",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_MAY_OVERFLOW@flatplan p7",
+    "warning:TEXT_MAY_OVERFLOW@flatplan p9",
+    "warning:TEXT_MAY_OVERFLOW@flatplan p14"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p3: c-all cl-text fit fit-auto clipped / p6: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim / p7: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outside-trim, text-outs",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 349 font object(s) embedded, but 349 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p3: c-all cl-text fit fit-auto clipped / p6: fb-text c-all fit cols-2 clipped, text-outside-trim, text-outside",
+    "WARNING P21 text inside the safe margin on p6,7,14",
+    "WARNING P29 p9: …るのかもしれません。",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "15-theme-margins": {
+  "expected": "safe-area / overflow / spine issues detected",
+  "validate": {
+   "exit": 0,
+   "findings": []
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P19 overflow / text clipping: p13: es-text es-text-o fit clipped | publication:all adv-15-theme-margins: preflight FAIL (PASS 20, WARNING 4, FAIL 1, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P19 p13: es-text es-text-o fit clipped",
+    "WARNING P21 text inside the safe margin on p1,2,4,6,8,10,12,13,14,16",
+    "WARNING P30 p7 feature-body/two-col-image: content reaches only 66% of the live area (expected ≥68%) / p9 interview-body/q",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "20-blank-page": {
+  "expected": "blank page FAIL (P17) unless intentional",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:TEXT_PAGE_EMPTY@flatplan p15"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  FAIL         P17 blank pages: blank (no text/image, uniform pixels): p15. Set intentional_blank: true in the flatplan if deliberate | publication:all adv-20-blank-page: preflight FAIL (PASS 21, WARNING 3, FAIL 1, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "FAIL",
+   "nonpass": [
+    "WARNING P14 all 308 font object(s) embedded, but 308 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "FAIL P17 blank (no text/image, uniform pixels): p15. Set intentional_blank: true in the flatplan if deliberate",
+    "WARNING P30 p15 essay/body: text occupancy 0 < expected ≥0.3 for a \"only\" page of its article; content reaches only 0% of ",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "21-special-filename": {
+  "expected": "images with spaces / Japanese / # in the name should work (or be rejected clearly)",
+  "validate": {
+   "exit": 0,
+   "findings": []
+  },
+  "all_exit": 0,
+  "all_tail": "publication:all adv-21-special-filename: preflight WARNING (PASS 23, WARNING 2, FAIL 0, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "WARNING",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "22-raw-html": {
+  "expected": "raw HTML/script in a manuscript must not execute or restyle the page",
+  "validate": {
+   "exit": 0,
+   "findings": [
+    "warning:MD_RAW_HTML_ESCAPED@articles/editors-note.md"
+   ]
+  },
+  "all_exit": 0,
+  "all_tail": "publication:all adv-22-raw-html: preflight WARNING (PASS 23, WARNING 2, FAIL 0, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "WARNING",
+   "nonpass": [
+    "WARNING P14 all 354 font object(s) embedded, but 354 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "23-article-type-mismatch": {
+  "expected": "semantic check: essay article placed in interview-body / feature in cover",
+  "validate": {
+   "exit": 0,
+   "findings": []
+  },
+  "all_exit": 0,
+  "all_tail": "publication:all adv-23-article-type-mismatch: preflight WARNING (PASS 22, WARNING 3, FAIL 0, MANUAL CHECK 7)",
+  "preflight": {
+   "verdict": "WARNING",
+   "nonpass": [
+    "WARNING P14 all 352 font object(s) embedded, but 352 are Type 3 (Chromium output). Some printers' preflight rejects Type 3",
+    "WARNING P30 p14 interview-body/qa: content reaches only 55% of the live area (expected ≥60%)",
+    "WARNING P25 7 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert "
+   ]
+  }
+ },
+ "24-duplicate-article-id": {
+  "expected": "duplicate article ids must be an error",
+  "validate": {
+   "exit": 1,
+   "findings": [
+    "error:ARTICLE_DUPLICATE@articles/editors-note.md"
+   ]
+  },
+  "all_exit": 1,
+  "all_tail": "  ERROR ARTICLE_DUPLICATE: duplicate article id \"editors-note\" [articles/editors-note.md] | publication:all failed: validation failed"
+ }
+}

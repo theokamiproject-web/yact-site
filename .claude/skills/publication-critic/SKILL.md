@@ -14,6 +14,11 @@ description: 完成した誌面をBlind→Context→Rereviewで批評する手�
 5. Editor in Chief が優先順位を決め、各担当が修正 → `publication:all` を再実行
 6. **Rereview**: 新しいpackで `critic-rereview.md`。blind/contextの全指摘（MEDIUM以上必須）に disposition（fixed/open/regressed/wontfix）。AUTOブロックの `RESOLVED/NEW/STILL` は初回packとの機械的差分
 
+## レビューの保護と結び付け
+- レビューファイルは監査記録。パイプラインは書き換えない。`critic --reset` は作業済みを拒否、`--force` は `reviews/archive/<日時>/` に退避してから上書き。
+- `review-pack/PACK.json` の `source_hash` を front matter に写す。ソースが変わると STALE（preflight P27 は MANUAL CHECK）。
+- 自動出力は MEASUREMENT（事実）/ HEURISTIC（経験則）/ REVIEW_REQUIRED（機械判断不能）に分類される。
+
 ## 重大度
 BLOCKER(出荷不可) / HIGH / MEDIUM / LOW / NOTE。指摘は 問題→根拠→該当ページ→重大度→修正案。感想は書かない。
 

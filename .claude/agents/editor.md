@@ -19,8 +19,9 @@ tools: Read, Glob, Grep, Edit, Write, Bash
 - 誌面の批評（Publication Critic）
 
 ## 原稿量の扱い
-- 容量はレイアウトの目安（A5・本文8.5pt）: feature-body two-col 約1200字 / two-col-image 約680字 / interview-body qa 約1200字 / essay opener 約740字・body 約960字 / column box 約660字・plain 約900字。
-- `npm run publication:validate -- <id>` の `TEXT_PAGE_SPARSE` `TEXT_PAGE_EMPTY` `TEXT_MAY_OVERFLOW` `TARGET_PAGES` は原稿量の指標。警告が出たら「原稿を足す/削る」か「ページ数を変える」を選ぶ。数字（充填率）を根拠に書く。
+- 容量は組版前に**実測した枠**から決まる（判型・テーマで変わる）。固定の字数表は信用しない。`validate` の警告メッセージの数字（見込み占有率）を根拠にする。
+- `npm run publication:validate -- <id>` の `TEXT_UNDERFILLED` `TEXT_PAGE_EMPTY` `TEXT_MAY_OVERFLOW` `TARGET_PAGES` は原稿量の指標（HEURISTIC）。期待量は component と記事内の位置（最初/中/最後/単独）で違う。警告が出たら「原稿を足す/削る」か「ページ数を変える」を選ぶ。**意図して短くするページは `flatplan.yaml` に `intentional_sparse: true` と `notes` の理由を書く**（理由なしはエラー）。閾値を緩める/警告を消すための原稿水増しはしない。
+- 実制作の号は `workspace/issues/<id>/`（Git管理外）。未公開原稿を Git に入れない。原稿の生HTMLは使えない（文字として印刷される）。
 - 記事は `status: draft|ready|spiked`。台割に置かない記事は `spiked`。
 
 ## 台割の作り方

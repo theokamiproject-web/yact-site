@@ -6,7 +6,7 @@ description: 雑誌・ZINE・冊子を1冊、企画から入稿前チェック�
 
 原則: **AIが毎回デザインを発明するのではなく、編集構造・Design System・再利用componentの制約下で編集・設計する。** 品質の再現性を生成の自由度より優先する。
 
-Source of truth は `publishing-studio/issues/<id>/` の YAML + Markdown（Publication Model）。誌面HTMLは生成物で、直接編集しない。詳細は `publishing-studio/README.md`。
+Source of truth は実制作号の `publishing-studio/workspace/issues/<id>/`（**Git管理外**。未公開原稿を公開リポジトリに入れない）。例示号は `publishing-studio/issues/` の YAML + Markdown（Publication Model）。誌面HTMLは生成物で、直接編集しない。詳細は `publishing-studio/README.md`。
 
 ## 工程とagent
 | # | 工程 | agent | 成果物 | ゲート |
@@ -38,6 +38,7 @@ npm run publication:critic -- <id> --check       # 完了したレビューの�
 3. **台割承認前に組版しない。** 組版後の原稿変更は台割に影響するので、Editorへ戻す。
 4. **レビューは1ラウンドで終わらせない。** 修正したら必ず再build/再render後に rereview。
 5. **既存の flyer-designer / design-critic など他の仕組みには触れない。**
+6. **公開境界**: 実号は `workspace/`。`publication:boundary` と pre-commit が非公開ファイルの commit を拒否する。上書きフラグは意図した公開のときだけ。
 
 ## 完了条件（号を「出せる」状態）
 `publication:preflight` に FAIL がなく、`critic --check` で open BLOCKER/HIGH が0、`proofread.md` が complete、MANUAL CHECK（RGB/CMYK・PDF/X・クロップマーク）を印刷所に確認する旨を記録した。

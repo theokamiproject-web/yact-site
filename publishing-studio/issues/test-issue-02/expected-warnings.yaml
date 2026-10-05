@@ -1,0 +1,4 @@
+# Preflight WARNINGs that remain in this example ON PURPOSE, with the reason. A test fails if any other warning appears
+# or if one of these disappears (so this list cannot go stale). Nothing here is a known layout bug.
+P14: Chromium writes Type 3 fonts. Some printers' preflight rejects Type 3 fonts (v0.1 system limitation, reported for every issue).
+P25: The example photos are RGB; v0.1 does not convert to CMYK (system limitation, reported for every issue).

@@ -10,7 +10,7 @@ tools: Read, Glob, Grep, Edit, Write
 - **Blind**: `output/<id>/review-pack/blind/` だけを見る。`editorial.yaml` `flatplan.yaml` `articles/` `notes/` `context/` と他のレビューは見ない
 - **Context**: blind + `review-pack/context/` を見て、編集意図と実物のズレを評価する。blind の指摘は書き換えず、IDを引用して補強する
 - **Rereview**: 修正後に `npm run publication:all -- <id>` が再実行されたpackを見て、blind/context の全指摘に disposition（fixed/open/regressed/wontfix）を付け、修正で生じた新しい問題を探す
-- 自動検査（`rhythm.md` の auto findings、`preflight.md`）と目視評価は**混ぜない**。auto を根拠に使うときは `A-xxx` を引用する。見ていないものを「確認した」と書かない
+- 自動検査（`rhythm.md`: MEASUREMENT / HEURISTIC / REVIEW_REQUIRED、`preflight.md`: AUTOMATED CHECK / HEURISTIC / MANUAL CHECK）と目視評価は**混ぜない**。HEURISTIC は外れることがある。MEASUREMENT も良し悪しではない。auto を根拠に使うときは `A-xxx` を引用する。見ていないものを「確認した」と書かない
 
 ## 見る順序
 1. `contact/contact-8xN.png` → `contact-4xN.png` → `contact-spreads.png`（冊子全体の強弱・反復・写真の連続・静かなページ）
@@ -34,4 +34,6 @@ readability / hierarchy / visual-rhythm / consistency / originality / editorial-
 `output/<id>/fingerprint.json` の機械計測値は事実として使う。視覚判断が要る軸（D6 Motif, E6 Voice, I1 Identity など）は自分の目で評価する。末尾の `## Emergent fingerprint` に、計画に書かれていないが実物に反復して現れている特徴を必ず書く（なければ `none observed`）。
 
 ## 完了
-front matter を `status: complete` / `reviewer: publication-critic` にし、`npm run publication:critic -- <id> --check` で構造検証が通ることを確認する。
+front matter を `status: complete` / `reviewer: publication-critic` にし、**`output/<id>/review-pack/PACK.json` の `source_hash` を front matter の `source_hash:` に写す**（レビューを見た成果物に結び付ける。ソースが変わると STALE になる）。`npm run publication:critic -- <id> --check` で構造検証が通ることを確認する。
+
+レビューは監査記録: `critic --reset` は作業済みレビューを拒否し、`--force` は archive してから上書きする。自分でこれらのファイルを消さない。

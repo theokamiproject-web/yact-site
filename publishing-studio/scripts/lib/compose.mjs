@@ -1,11 +1,14 @@
 // Compose the Publication Model into one HTML book (one <section.page> per page) + page manifest.
 import { loadRegistry, variantPages } from './registry.mjs';
-import { buildInputs, entriesOf, tocEntries } from './inputs.mjs';
+import { buildInputs, entriesOf, tocEntries, imageRefs } from './inputs.mjs';
 import { esc } from '../../layouts/_shared.mjs';
+import { imageTones } from './tone.mjs';
+import { frameLines } from './text.mjs';
 
 /** plan: Map(entry -> {blocks}) from planText; an empty Map composes the book without body text (layout probe). */
-export async function compose(model, { plan = new Map() } = {}) {
+export async function compose(model, { plan = new Map(), frames = new Map() } = {}) {
   const reg = await loadRegistry();
+  const tones = await imageTones(model, entriesOf(model).flatMap((e) => imageRefs(buildInputs(model, e))));
   const toc = tocEntries(model);
   const issue = model.issue;
   const pages = [];
@@ -15,7 +18,13 @@ export async function compose(model, { plan = new Map() } = {}) {
     const variant = entry.variant ?? c.defaultVariant;
     const inputs = buildInputs(model, entry);
     const text = plan.get(entry)?.blocks ?? [];
-    const rendered = c.render({ inputs, variant, text, entry, model, pages: entry.pages });
+    const frame = frames.get(entry.pages[0]);
+    const ctx = {
+      inputs, variant, text, entry, model, pages: entry.pages,
+      frame, measure: frame ? frameLines(frame).perLine : null,                     // measured text frame of this page (pass A)
+      tone: (file, part = 'all') => tones[file]?.[part] ?? { top: 'light', bottom: 'light' }, // 'dark' | 'light' behind the chrome
+    };
+    const rendered = c.render(ctx);
     const expected = variantPages(c, variant);
     if (rendered.length !== expected) throw new Error(`${entry.layout}/${variant} returned ${rendered.length} page(s), contract says ${expected}`);
     const art = model.articles[entry.article].meta;
@@ -31,6 +40,7 @@ export async function compose(model, { plan = new Map() } = {}) {
         `data-article="${esc(entry.article)}"`, `data-chrome="${chrome}"`,
         entry.pages.length === 2 ? `data-spread="${entry.pages.join('-')}"` : '',
         p.bg ? `data-bg="${p.bg}"` : '', p.dark ? 'data-on="dark"' : '',
+        p.runheadOn ? `data-runhead-on="${p.runheadOn}"` : '', p.folioOn ? `data-folio-on="${p.folioOn}"` : '',
         entry.intentional_blank ? 'data-intentional-blank="true"' : '',
         `data-intensity="${entry.visual_intensity ?? ''}"`,
       ].filter(Boolean).join(' ');

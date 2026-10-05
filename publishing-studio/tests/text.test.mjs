@@ -7,8 +7,9 @@ const frame = (o = {}) => ({ w: 60, h: 55, cols: 1, gap: 0, fs: 3, lh: 5.5, ...o
 const P = (n, extra = {}) => ({ type: 'p', md: 'あ'.repeat(n), ...extra });
 
 test('frame capacity comes from measured geometry (chars/line x lines x columns)', () => {
-  assert.deepEqual(frameLines(frame()), { perLine: 20, lines: 10, capacityChars: 200 });
-  assert.equal(frameChars(frame({ cols: 2, w: 124, gap: 4 })), 2 * 10 * 20);
+  // 20 theoretical chars/line x LINE_EFFICIENCY 0.96 (phrase breaking / kinsoku) -> 19
+  assert.deepEqual(frameLines(frame()), { perLine: 19, lines: 10, capacityChars: 190 });
+  assert.equal(frameChars(frame({ cols: 2, w: 124, gap: 4 })), 2 * 10 * 19);
   assert.equal(frameChars(frame({ h: 2 })), 0);
 });
 

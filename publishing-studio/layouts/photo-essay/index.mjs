@@ -12,12 +12,12 @@ export default {
       optional: ['title', 'kicker'],
       minImages: { 'grid-3': 3, 'sequence-4': 4, 'wide-single': 1 },
       captions: true,
-      render({ inputs: i, variant, model }) {
+      render({ inputs: i, variant, model, tone }) {
         const [a, b, c, d] = i.images;
         const head = `<div class="pe-head c-all">${when(i.kicker, `<span class="kicker">${esc(i.kicker)}</span>`)}<h2>${esc(i.title)}</h2></div>`;
         if (variant === 'grid-3') {
           return [
-            { chrome: 'folio', html: `<div class="pe-bleed-l">${img(model, a)}</div><div class="pe-capl">${captionHtml(model, a)}</div>` },
+            { chrome: 'folio', folioOn: tone(a).bottom, html: `<div class="pe-bleed-l">${img(model, a)}</div><div class="pe-capl ${tone(a).bottom === 'dark' ? 'on-dark' : ''}">${captionHtml(model, a)}</div>` },
             { html: `<div class="live pe-r">${head}<div class="c-all pe-r1">${fig(model, b)}</div><div class="c-all pe-r2">${fig(model, c)}</div></div>` },
           ];
         }
@@ -39,11 +39,11 @@ export default {
       required: () => ['hero_image'],
       optional: [],
       captions: true,
-      render({ inputs: i, variant, model }) {
-        if (variant === 'single') return [{ chrome: 'folio', dark: true, html: `<div class="bleed">${img(model, i.hero_image)}</div><div class="fp-cap on-dark">${captionHtml(model, i.hero_image)}</div>` }];
+      render({ inputs: i, variant, model, tone }) {
+        if (variant === 'single') return [{ chrome: 'folio', folioOn: tone(i.hero_image).bottom, dark: tone(i.hero_image).bottom === 'dark', html: `<div class="bleed">${img(model, i.hero_image)}</div><div class="fp-cap ${tone(i.hero_image).bottom === 'dark' ? 'on-dark' : ''}">${captionHtml(model, i.hero_image)}</div>` }];
         return [
-          { chrome: 'folio', dark: true, html: `<div class="fp-sp fp-sp-l">${img(model, i.hero_image)}</div>` },
-          { chrome: 'folio', dark: true, html: `<div class="fp-sp fp-sp-r">${img(model, i.hero_image)}</div><div class="fp-cap on-dark">${captionHtml(model, i.hero_image)}</div>` },
+          { chrome: 'folio', folioOn: tone(i.hero_image, 'left').bottom, html: `<div class="fp-sp fp-sp-l">${img(model, i.hero_image)}</div>` },
+          { chrome: 'folio', folioOn: tone(i.hero_image, 'right').bottom, html: `<div class="fp-sp fp-sp-r">${img(model, i.hero_image)}</div><div class="fp-cap ${tone(i.hero_image, 'right').bottom === 'dark' ? 'on-dark' : ''}">${captionHtml(model, i.hero_image)}</div>` },
         ];
       },
     },

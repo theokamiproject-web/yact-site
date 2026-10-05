@@ -1,7 +1,6 @@
-.pe-bleed-l { position: absolute; top: calc(var(--bleed) * -1); bottom: calc(var(--bleed) * -1); left: calc(var(--bleed) * -1); right: var(--margin-inner); overflow: hidden; z-index: -1; }
+.pe-bleed-l { position: absolute; top: calc(var(--bleed) * -1); bottom: calc(var(--bleed) * -1); left: calc(var(--bleed) * -1); right: 0; overflow: hidden; z-index: -1; }   /* runs to the spine: no stray paper strip */
 .pe-bleed-l img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pe-capl { position: absolute; bottom: var(--margin-bottom); right: calc(var(--margin-inner) * 0.12); width: calc(var(--margin-inner) * 0.76); }
-.pe-capl .caption { writing-mode: vertical-rl; font-size: var(--fs-caption); }
+.pe-capl { position: absolute; bottom: calc(var(--folio-offset) + var(--baseline) * 1.5); left: var(--margin-outer); right: var(--margin-inner); }
 .pe-r.live { grid-template-rows: auto 1fr 1fr; row-gap: var(--space-2); height: var(--content-h); }
 .pe-r .pe-r1, .pe-r .pe-r2 { min-height: 0; }
 .pe-fig { height: 100%; display: flex; flex-direction: column; }

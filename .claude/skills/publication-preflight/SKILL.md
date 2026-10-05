@@ -6,6 +6,8 @@ description: 入稿前チェック（preflight）の実行と読み方。ペー�
 
 `npm run publication:preflight -- <id>`（または `publication:all`）。要 `build`+`render` 済み。結果は `output/<id>/preflight.{md,json}`。FAIL があれば終了コード1。
 
+**これは入稿適合の保証書ではない。** 項目は AUTOMATED CHECK（決定的な測定）/ HEURISTIC（経験則）/ MANUAL CHECK（未確認）に分類され、総合判定に「ready」はない。
+
 ## ステータス
 - **PASS**: 自動で確認でき、問題なし
 - **WARNING**: 問題の可能性。理由を確認して判断（例: Type 3 フォント、RGB画像、本文枠が疎）
@@ -13,7 +15,7 @@ description: 入稿前チェック（preflight）の実行と読み方。ペー�
 - **MANUAL CHECK**: v0.1 では自動確認できない。**確認済みではない**（CMYK/PDF-X、クロップマーク、批評・校正の未完了）
 
 ## 項目
-P01 flatplan/schema, P02 未配置記事, P03 未知layout, P04 欠落素材, P05 キャプション欠落(FAIL), P06 原稿量, P08 総ページ数, P09 PDFページ数, P10 PDFが最新か, P11 仕上がりサイズ(TrimBox), P12 塗り足し(BleedBox), P13 トンボ, P14 フォント埋め込み, P15 テーマフォント有無, P17 白ページ, P18 画像破損, P19 本文あふれ/はみ出し, P20 ノンブル欠落/重複/誤り, P21 セーフエリア, P22 実効ppi, P23 断ち落とし画像の塗り足し, P24/P25 画像色空間, P26 PDF色/PDF-X, P27 Critic, P28 Proofreader
+P00 公開境界（非公開の号が公開ツリーにある→FAIL）, P01 flatplan/schema, P02 未配置記事, P03 未知layout, P04 欠落素材, P05 キャプション欠落(FAIL), P06 原稿量, P08 総ページ数, P09 PDFページ数, P10 PDFが最新か, P11 仕上がりサイズ(TrimBox), P12 塗り足し(BleedBox), P13 トンボ, P14 フォント埋め込み, P15 テーマフォント有無, P17 白ページ, P18 画像破損, P19 本文あふれ/はみ出し, P20 ノンブル欠落/重複/誤り, P21 セーフエリア, P22 実効ppi, P23 断ち落とし画像の塗り足し, P24/P25 画像色空間, P26 PDF色/PDF-X, P27 Critic（見た成果物に結び付いたレビューのみ判定。古いレビューは MANUAL CHECK）, P28 Proofreader, P29 孤立行(HEURISTIC), P30 未充填頁(HEURISTIC), P31 目次の欠落, P32-P34 ICC・オーバープリント/トラッピング/インキ総量・印刷会社適合（MANUAL CHECK）
 
 ## 対処
 - P19 FAIL: 台割のページ配分/variant/原稿量。`rhythm.md` の `fill` 列を根拠に

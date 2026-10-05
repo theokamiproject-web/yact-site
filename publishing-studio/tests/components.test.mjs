@@ -25,7 +25,7 @@ test('every component x variant renders the contracted number of pages and respe
       const label = `${c.name}/${v}`;
       assert.equal(typeof c.render, 'function', label);
       assert.ok(Number.isInteger(variantPages(c, v)), label);
-      const pages = c.render({ inputs, variant: v, text: c.text ? text : [], model, entry: {}, pages: [] });
+      const pages = c.render({ inputs, variant: v, text: c.text ? text : [], model, entry: {}, pages: [], frame: undefined, measure: 19, tone: () => ({ top: 'dark', bottom: 'light' }) });
       assert.equal(pages.length, variantPages(c, v), `${label}: page count`);
       for (const p of pages) {
         const html = typeof p === 'string' ? p : p.html;

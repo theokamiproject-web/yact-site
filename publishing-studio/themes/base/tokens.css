@@ -66,7 +66,7 @@
   --font-body: "Noto Serif CJK JP", "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
   --font-heading: "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
   --font-display: "Noto Serif CJK JP", "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
-  --baseline: calc(5.5mm * var(--type-scale));    /* body leading = vertical rhythm unit */
+  --baseline: calc(5mm * var(--type-scale));      /* body leading (167% of 8.5pt) = vertical rhythm unit */
   --fs-folio: max(var(--min-text), calc(6.5pt * var(--type-scale)));
   --fs-runhead: max(var(--min-text), calc(6.5pt * var(--type-scale)));
   --fs-caption: max(var(--min-text), calc(6.5pt * var(--type-scale)));
@@ -94,7 +94,7 @@
   /* colors */
   --color-paper: #fbfaf6;
   --color-ink: #1d1c1a;
-  --color-sub: #6d6a62;
+  --color-sub: #5a574f;   /* captions / folios: >= 6.5:1 on the paper colour */
   --color-accent: #c8452d;
   --color-accent-2: #1f4e5f;
   --color-tint: #efe9dc;

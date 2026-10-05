@@ -62,4 +62,6 @@ for (const [id, c] of Object.entries(cases)) {
   results[id] = r;
   console.log(`\n### ${id}\n${JSON.stringify(r, null, 1)}`);
 }
-fs.writeFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), `../evidence/F-adversarial${only.length ? '-' + only.join('_') : ''}.json`), JSON.stringify(results, null, 1));
+const EVIDENCE = process.env.EVIDENCE_DIR ?? path.join(path.dirname(new URL(import.meta.url).pathname), '../evidence'); // RC2 sets EVIDENCE_DIR so RC1 evidence is never overwritten
+fs.mkdirSync(EVIDENCE, { recursive: true });
+fs.writeFileSync(path.join(EVIDENCE, `F-adversarial${only.length ? '-' + only.join('_') : ''}.json`), JSON.stringify(results, null, 1));

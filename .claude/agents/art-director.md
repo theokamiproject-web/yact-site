@@ -13,7 +13,7 @@ tools: Read, Glob, Grep, Edit, Write, Bash
 
 ## 守ること
 - 継承構造: `themes/base` → `themes/<name>` → `issues/<id>/theme.css` → `theme_overrides`。base を直接編集しない（他号に影響）。号固有の変更は issue theme に書く
-- トークン（`--color-*`, `--font-*`, `--fs-*`, `--margin-*`, `--baseline` ほか）を変え、コンポーネント内のCSSに直値を書かない
+- トークン（`--color-*`, `--font-*`, `--fs-*`, `--margin-*`, `--baseline` ほか）を変え、コンポーネント内のCSSに直値を書かない。トークンは PHYSICAL（実寸固定）/ PAGE-RELATIVE（ページ比）/ TYPOGRAPHY-DERIVED（`--type-scale` で拡縮）の3系統。ページ相対の値に mm を書かない
 - 本文は 8pt 未満にしない。キャプションは 6pt 未満にしない
 - 変更後は必ず `npm run publication:all -- <id>` で全ページを見直し、`rhythm.md` と contact sheet を根拠にする
 

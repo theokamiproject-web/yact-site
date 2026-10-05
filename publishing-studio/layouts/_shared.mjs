@@ -38,6 +38,8 @@ export function blocksHtml(blocks) {
   }).join('\n');
 }
 export const body = (blocks, cls = '') => `<div class="body ${cls}">${blocksHtml(blocks)}</div>`;
+/** Narrow measures (fewer than 24 characters per line) are set ragged-right: justification would open uneven gaps. */
+export const narrow = (measure) => (measure && measure < 24 ? 'narrow' : '');
 export const byline = (i) => when(has(i.author), `<p class="byline">${i.source ? `${esc(i.source)}　` : ''}文 <b>${esc(i.author)}</b>${i.author_role ? `　${esc(i.author_role)}` : ''}</p>`);
 
 

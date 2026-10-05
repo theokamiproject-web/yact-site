@@ -41,3 +41,11 @@ test('tokens.css defines the three families and page-relative margins (no mm mar
     assert.match(t, new RegExp(`${k}:\\s*calc\\(var\\(--(page|content)-[wh]\\)`), `${k} must be page-relative`);
   }
 });
+
+test('every grid helper class used by a component (c-1-5, c-all, …) is defined in the theme', () => {
+  const grid = fs.readFileSync(path.join(PS, 'themes/base/grid.css'), 'utf8');
+  for (const d of fs.readdirSync(path.join(PS, 'layouts'), { withFileTypes: true }).filter((x) => x.isDirectory())) {
+    const src = fs.readFileSync(path.join(PS, 'layouts', d.name, 'index.mjs'), 'utf8');
+    for (const c of new Set(src.match(/\bc-(?:all|\d-\d)\b/g) ?? [])) assert.match(grid, new RegExp(`\\.${c}\\s*\\{`), `layouts/${d.name} uses .${c} but themes/base/grid.css does not define it (RC1: an undefined class silently collapsed a divider deck to one column)`);
+  }
+});

@@ -1,4 +1,8 @@
-.iv-portrait { position: absolute; top: calc(var(--bleed) * -1); left: calc(var(--bleed) * -1); width: calc(var(--portrait-w) + var(--bleed)); height: calc(var(--portrait-h) + var(--bleed)); overflow: hidden; z-index: -1; }
+/* the portrait ends one gutter before column 4 (outer side), so it never touches the text column beside it */
+.iv-portrait { position: absolute; top: calc(var(--bleed) * -1); width: calc(var(--margin-outer) + 3 * var(--col-w) + 2 * var(--gutter) + var(--bleed)); height: calc(var(--portrait-h) + var(--bleed)); overflow: hidden; z-index: -1; }
+.page[data-side="left"] .iv-portrait, .page[data-side="solo"] .iv-portrait { left: calc(var(--bleed) * -1); }
+.page[data-side="right"] .iv-portrait { right: calc(var(--bleed) * -1); }
+.page[data-side="right"] .iv-side { grid-column: 1 / span 3; }
 .iv-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .iv-o.live { height: var(--content-h); grid-template-rows: var(--interview-head-h) auto auto 1fr; row-gap: 0; }
 .iv-side { grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; }

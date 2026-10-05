@@ -38,14 +38,14 @@ test('text frames report measured width/height/columns/font size/leading; occupa
   const [a, b] = await measure(page(1, `<div class="live"><div class="c-all fit cols-2" style="height:60mm"><div class="body"><p>${'あ'.repeat(60)}</p></div></div></div>`) + page(2, `<div class="live"><div class="c-all fit cols-2" style="height:60mm"><div class="body"><p>${'あ'.repeat(600)}</p></div></div></div>`));
   const f = a.fit_frames[0];
   assert.equal(f.cols, 2);
-  assert.ok(Math.abs(f.h - 60) < 0.2 && f.w > 100 && f.fs > 2.9 && f.fs < 3.1 && Math.abs(f.lh - 5.5) < 0.1, JSON.stringify(f));
+  assert.ok(Math.abs(f.h - 60) < 0.2 && f.w > 100 && f.fs > 2.9 && f.fs < 3.1 && Math.abs(f.lh - 5) < 0.1, JSON.stringify(f));
   assert.ok(a.text_occupancy < 0.3);
   assert.ok(b.text_occupancy > 0.9);
 });
 
 test('orphan lines: a last line of one or two characters is reported, a full last line is not', { timeout: 60000 }, async () => {
   // measure = 118mm / 3mm = 39 chars per line
-  const [orphan, fine] = await measure(page(1, live(`<div class="body"><p class="noindent">${'あ'.repeat(40)}。</p></div>`)) + page(2, live(`<div class="body"><p class="noindent">${'あ'.repeat(60)}</p></div>`)));
+  const [orphan, fine] = await measure(page(1, live(`<div class="body"><p class="noindent" style="text-wrap:wrap">${'あ'.repeat(40)}。</p></div>`)) + page(2, live(`<div class="body"><p class="noindent">${'あ'.repeat(60)}</p></div>`)));
   assert.equal(orphan.orphan_lines.length, 1, JSON.stringify(orphan.orphan_lines));
   assert.equal(fine.orphan_lines.length, 0);
 });

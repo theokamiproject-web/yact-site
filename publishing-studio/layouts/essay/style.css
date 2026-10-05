@@ -5,4 +5,3 @@
 .es-head .byline { margin-top: var(--space-1); }
 .es-col { grid-column: 1 / span 5; min-height: 0; height: 100%; }
 .es-text { height: 100%; }
-.es-text-o > .body > p:first-child::first-letter { font-family: var(--font-heading); font-weight: 900; color: var(--color-accent); }

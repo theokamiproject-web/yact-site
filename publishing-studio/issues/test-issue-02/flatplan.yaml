@@ -132,6 +132,8 @@ pages:
   visual_intensity: 3
   text_density: 3
   image_density: 2
+  intentional_sparse: true
+  notes: 'ひと言インタビュー: 問答2つだけの極短記事。本文の少なさは編集上の意図'
 - pages:
   - 21
   article: quote-c

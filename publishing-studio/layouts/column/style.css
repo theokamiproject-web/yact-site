@@ -1,6 +1,8 @@
 .cl.live { height: var(--content-h); }
 .cl-title { font-size: var(--fs-h2); margin: var(--space-0) 0 var(--space-1); }
 .cl-box { padding: var(--space-2) var(--space-2); }
+/* a boxed note floats at the optical centre of the page: reads as a deliberate quiet page, not an unfinished one */
+.cl-center.live { align-content: center; }
 .cl-grid { display: grid; row-gap: var(--space-1); }
 .cl-text { max-height: var(--column-box-max-h); }
 .cl-plain .cl-text { max-height: var(--column-plain-max-h); }

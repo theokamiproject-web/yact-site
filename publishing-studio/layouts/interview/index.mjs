@@ -1,4 +1,4 @@
-import { esc, img, fig, captionHtml, body, when } from '../_shared.mjs';
+import { esc, img, fig, captionHtml, body, when, narrow } from '../_shared.mjs';
 
 const who = (i) => `<p class="iv-who"><b>${esc(i.interviewee ?? '')}</b>${i.interviewee_role ? `<span>${esc(i.interviewee_role)}</span>` : ''}</p>`;
 
@@ -29,9 +29,10 @@ export default {
       optional: ['image'],
       captions: true,
       text: true,
-      render({ inputs: i, variant, text, model }) {
-        if (variant === 'qa') return [{ html: `<div class="live ib"><div class="ib-text c-all fit cols-2">${body(text)}</div></div>` }];
-        return [{ html: `<div class="live ib ib-rows"><div class="c-1-3">${fig(model, i.image, { imgStyle: 'height:var(--qa-img-h)' })}</div><div class="ib-text c-all fit cols-2">${body(text)}</div></div>` }];
+      render({ inputs: i, variant, text, model, measure }) {
+        const nar = narrow(measure);
+        if (variant === 'qa') return [{ html: `<div class="live ib"><div class="ib-text c-all fit cols-2">${body(text, nar)}</div></div>` }];
+        return [{ html: `<div class="live ib ib-rows"><div class="c-1-3">${fig(model, i.image, { imgStyle: 'height:var(--qa-img-h)' })}</div><div class="ib-text c-all fit cols-2">${body(text, nar)}</div></div>` }];
       },
     },
   },
