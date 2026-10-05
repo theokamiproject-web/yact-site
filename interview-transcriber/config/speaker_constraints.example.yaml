@@ -8,3 +8,12 @@ persons:
     - {chunk: 9, local: SPEAKER_03}   # 例: 後半に別ラベルで現れた話者が B と同じと確認できた場合
   C:
     - {chunk: 0, local: SPEAKER_01}
+
+# --- 以下は --analyze-local-split（localの混在分析・レポートのみ）用。任意 ---
+# 人間が聞き比べた代表サンプル（wav）。あれば参照embeddingに使う（無ければ上の persons のlocalの単独区間から作る）
+samples:
+  B: [samples/speaker_B_01.wav]
+  C: [samples/speaker_C_01.wav]
+# 人間確認済みの時刻と人物。分析結果との突き合わせ表示だけに使う（判定ロジックには使わない）
+check_points:
+  - {time: 100, person: B, note: "例"}

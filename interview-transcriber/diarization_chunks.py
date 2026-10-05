@@ -190,7 +190,13 @@ def load_constraints(path) -> dict | None:
     persons = {}
     for name, items in (data.get("persons") or {}).items():
         persons[str(name)] = [(int(a["chunk"]), str(a["local"])) for a in (items or [])]
-    return {"persons": persons} if persons else None
+    samples = {str(n): [str(f) for f in (fs or [])] for n, fs in (data.get("samples") or {}).items()}
+    out = {"persons": persons}
+    if samples:
+        out["samples"] = samples          # 人間が聞き比べた代表サンプル（local_split.py の参照embedding用）
+    if data.get("check_points"):
+        out["check_points"] = list(data["check_points"])      # 人間確認済みの時刻と人物（local_split.py の突き合わせ用）
+    return out if persons else None
 
 
 def _mixed(rows: dict) -> list[str]:

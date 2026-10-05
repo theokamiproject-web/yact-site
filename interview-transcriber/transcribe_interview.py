@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -64,6 +65,14 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--diarize-chunk-overlap-sec", type=float, default=30.0, metavar="SEC", help="チャンクの重なり（秒、既定 %(default)s）")
     p.add_argument("--speaker-constraints", type=Path, default=None, metavar="YAML",
                    help="人間確認済みの話者対応（同一人物・別人）。保存済みチャンクから話者の統合だけをやり直す（config/speaker_constraints.example.yaml）")
+    p.add_argument("--analyze-local-split", action="store_true",
+                   help="（分析のみ・既定OFF）1つのlocal speaker内に複数人物が混在していないか、単独区間の声紋で分析し、"
+                        "local_split_report.json / local_split_review.md を出す。transcript・話者ラベルは変更しない。--speaker-constraints が必要")
+    p.add_argument("--local-split-refs", type=Path, default=None, metavar="YAML",
+                   help="--analyze-local-split の参照話者（--speaker-constraints と同じ書式）。省略時は --speaker-constraints を使う"
+                        "（--speaker-constraints を指定すると候補3の再統合も行われるので、分析だけなら --local-split-refs を使う）")
+    p.add_argument("--local-split-persons", default=None, metavar="B,C",
+                   help="--analyze-local-split の参照話者を絞る（感度分析用。カンマ区切り）")
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
     g = p.add_mutually_exclusive_group()  # 初期プロンプトは標準なし。次の2つは同時指定不可（エラー）
@@ -293,7 +302,30 @@ def main(argv=None) -> int:
     issues = qc.check_raw(turns)
     cands = dictmod.find_candidates(turns, terms) if terms else []
 
+    def run_local_split_analysis():
+        import diarization_chunks as dc
+        import local_split as ls
+        src = a.local_split_refs or a.speaker_constraints
+        cons = dc.load_constraints(src) if src else None
+        if not cons or len(cons["persons"]) < 2:
+            log("[local_split] 参照話者が2人以上必要です（--local-split-refs または --speaker-constraints に人間確認済みの人物を2人以上書いてください）。分析をスキップします")
+            return
+        wv = wav or wx.preprocess(a.audio, a.temp_dir, cfg.normalize)
+        t0 = time.time()
+        only = [x.strip() for x in a.local_split_persons.split(",")] if a.local_split_persons else None
+        rep = ls.run_local_split(cdir / "diarization_chunks", wv, cons, only_persons=only)
+        jp, mp = ls.write_reports(rep, out_dir)
+        sm = rep["summary"]
+        log(f"[local_split] 分析のみ（transcript・話者ラベルは変更していません）: local {sm['locals']} / anchor {sm['anchors']} / "
+            f"mixed_suspected {sm['mixed_suspected_locals']} / HIGH提案 {sm['high_split_proposals']} / MEDIUM提案 {sm['medium_split_proposals']} "
+            f"（{time.time() - t0:.0f}秒）→ {jp.name} / {mp.name}")
+
     def finish() -> int:
+        if a.analyze_local_split:
+            try:
+                run_local_split_analysis()
+            except Exception as e:  # noqa: BLE001 - 分析の失敗で通常の出力を止めない
+                log(f"[local_split] 分析に失敗しました（通常の出力には影響しません）: {type(e).__name__}: {str(e)[:200]}")
         qc.write_review(out_dir / "review_required.md", issues, notes, cands, findings=findings, turns=turns,
                         untranscribed=untr, keep_hallucinations=a.keep_hallucinations)
         high = sum(1 for i in issues if i.severity == qc.HIGH)

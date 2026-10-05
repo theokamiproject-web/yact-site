@@ -333,3 +333,16 @@ config/  speakers.yaml dictionary.yaml     output/  cache/  temp/
 - 単純なラベル置換はしません。統合先と**同じチャンクで併存する（同時に話す）local**は別人なので、その連鎖を、未使用で埋め込みが近い別の全体話者へ付け替えてから統合します。条件を満たせなければ**何も変えず**、要確認として報告します。
 - 前チャンクの2人以上と有意に同時に話す local（二人分を含む可能性）は『曖昧』として `diarization_chunks/merge_report.json` の `ambiguous` に記録します。
 - 人数で全体を固定することはしません。制約を指定しない通常実行の挙動は変わりません。
+
+## localスピーカー内の複数人物の混在を分析する（`--analyze-local-split`・分析のみ・既定OFF）
+
+pyannoteのlocal speaker（チャンク内のSPEAKER_xx）は1人とは限りません（例: Track-81 chunk9 local_00 は C→B が混在）。
+`--analyze-local-split` を付けたときだけ、localごとに『他のlocalと重ならない1.5秒以上の単独区間（anchor）』の声紋を、人物ごとの代表embeddingと比べ、
+`local_split_report.json` / `local_split_review.md` を出力します。**transcript・話者ラベル・01/02/03・diarization結果は一切変更しません**（Step 1）。
+- 参照話者は `--local-split-refs YAML`（書式は `config/speaker_constraints.example.yaml`）。省略時は `--speaker-constraints`。`--speaker-constraints` は候補3の再統合も行うので、分析だけなら `--local-split-refs` を使います。
+- anchor: 同じlocalのsegmentを隙間0.3秒以下でつなぎ、他localの発話を除き、1.5秒以上だけ。長いものは先頭10秒でembedding。各anchorに top1/top2・margin・confidence（HIGH: margin≥0.20かつtop1≥0.40 / MEDIUM: 0.10〜 / LOW: 0.05〜 / UNKNOWN）。
+- block: 同じ人物候補が連続するanchor。有効な根拠は『anchor2本以上・合計4秒以上・HIGH1本以上、またはMEDIUM2本以上』。60秒以内に3回以上入れ替わるlocalは unstable（判定不能）。
+- 分割提案: 前後の両blockが十分な根拠（各側2本以上・4秒以上・HIGH1本以上）で、人物が異なり、同時発話に矛盾しない場合のみ **HIGH**。境界は『最後の前anchorの終了〜最初の後anchorの開始』を **境界未確定ゾーン**として記録し、どちらの話者にも割り当てません。**HIGH でも書き換えません。**
+- 隣接チャンクで同じ音声（60%以上重なるanchor）は1つの証拠として数え、対応するlocalの組でまとめて判定します。
+- 根拠が足りないlocalは `insufficient_evidence`、片側の根拠が不足なら `mixed_suspected: true`。`--local-split-persons B,C` で参照話者を絞った感度分析ができます（他の人物の声は絞った人物のどちらかに寄ります）。
+- 55分の音声で約1分（CPU）。ASR・alignment・diarizationは実行しません。
