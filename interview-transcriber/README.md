@@ -1,0 +1,371 @@
+# interview-transcriber
+
+日本語の対談・インタビュー音声から、**逐語録 → 軽い整文 → 雑誌対談原稿** を一括生成する CLI。
+音声認識・話者分離は [WhisperX](https://github.com/m-bain/whisperX)（faster-whisper + pyannote）を**依存ライブラリとして**利用し、
+話者名の置換・整文・品質チェック・出力はこのプロジェクト側で実装しています（WhisperX本体は改造していません）。
+
+**標準動作は完全に無料・外部API不要**です（WhisperX + pyannote + ルールベース整文）。`python transcribe_interview.py interview.m4a` だけで最後まで完走します。
+目標は「完全な雑誌完成稿の自動生成」ではなく、**誰が・何を・どの順番で話したかを正確に取り出し、人が少し直せば原稿になる状態**にすることです。
+最優先は **発言の正確性** です。音声にない内容の追加・数字や固有名詞の変更・聞き取れない箇所の補完をせず、機械的に検査して `review_required.md` に出します。
+
+## 処理の流れ
+
+```
+音声 → ffmpeg前処理(16kHz/mono/音量正規化) → WhisperX文字起こし → alignment(文字単位の時刻)
+     → 話者分離(pyannote community-1) → 発言(turn)化 → 01 逐語録
+     → ルール整文 → 02 軽い整文版
+     → 結合・段落分け・句読点整理 → 品質チェック → 03 対談原稿 / transcript.json / review_required.md
+     （外部LLMは標準では使わない。任意でローカルLLM等を差し込める）
+```
+
+各段階の結果は `cache/<音声名>/` に個別保存され、途中で止まっても再開できます。
+
+## セットアップ
+
+動作確認環境: **Python 3.11**、whisperx 3.8.6、torch 2.8、Linux（CPUのみ）。
+
+```bash
+cd interview-transcriber
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt          # whisperx が torch 等も入れます（数GB）
+cp .env.example .env                     # 必要な値を記入（.env は .gitignore 済み）
+```
+
+### ffmpeg
+`ffmpeg` と `ffprobe` が PATH に必要です。
+
+```bash
+sudo apt install ffmpeg      # Ubuntu / Debian
+brew install ffmpeg          # macOS
+winget install ffmpeg        # Windows
+```
+
+### GPU / CPU
+- GPU（CUDA）があれば自動で使用（`float16`）。無ければ CPU（`int8`）に自動フォールバック。
+- 既定モデルは `large-v3`。**CPUでは非常に遅い**ため `--model small` か `medium` を推奨します。
+- 手動指定: `--device cuda|cpu`、`--compute-type float16|int8|...`
+
+### Hugging Face トークン（話者分離。無料）
+話者分離は `pyannote/speaker-diarization-community-1`（`--diarization-model` / `DIARIZATION_MODEL` で変更可）。モデルは**ゲート付き**です。
+
+1. <https://huggingface.co> でアカウント作成、read 権限のトークンを発行
+2. `pyannote/speaker-diarization-community-1` のページで利用条件に同意
+3. `.env` に `HF_TOKEN=hf_...` を記入
+
+**トークンが無い／同意していなくてもエラー終了しません。** 話者分離だけが失敗し、文字起こしは「話者不明」で全ファイルが出力されます（警告は `review_required.md` に記載）。
+
+### 整文について（APIキー不要）
+- 02・03 は**ルールベース**で生成します。有料APIは必要なく、環境に `ANTHROPIC_API_KEY` などがあっても**自動では使いません**。
+- 任意機能: 既にあるローカルLLM（Ollama等のOpenAI互換API）を使う場合のみ `.env` に `LOCAL_LLM_BASE_URL` を設定し `--editor local`。新たにOllamaや大きなモデルを入れる必要はありません。
+- `--editor claude` / `--editor openai` も残していますが、有料APIであり、使う場合は明示指定が必要です。LLM案は品質チェックで数字・固有名詞などの逸脱が見つかると不採用になります。
+- プロバイダの追加は `editor.py` の `BaseEditor.complete()` を実装するだけです。
+
+## 使い方
+
+```bash
+python transcribe_interview.py interview.m4a --model small
+
+python transcribe_interview.py interview.m4a \
+  --language ja --model large-v3 \
+  --speakers config/speakers.yaml --dictionary config/dictionary.yaml \
+  --output-dir output --min-speakers 2 --max-speakers 3 --timestamps
+```
+
+| オプション | 説明 |
+|---|---|
+| `--model` / `--device` / `--compute-type` / `--batch-size` | WhisperXの設定 |
+| `--speakers` / `--dictionary` | 設定ファイル（既定 `config/` 配下） |
+| `--min-speakers` / `--max-speakers` / `--num-speakers` | 話者数の指定（分かっていれば精度向上） |
+| `--timestamps` | clean版・雑誌版の各発言末尾に `[HH:MM:SS]` を付ける |
+| `--neutral-prompt` | 中立ASRプロンプトを渡す（**標準はOFF**）。句点がほぼ出ない音声で試す |
+| `--dictionary-prompt` | 辞書をWhisperの初期プロンプトに渡す（**標準はOFF**）。`--neutral-prompt` とは同時指定不可（エラー） |
+| `--keep-hallucinations` | HIGH（確実性の高い）幻覚も自動不採用にせず、要確認として残す |
+| `--min-untranscribed-sec` | ASR未転写候補として表示する最小の連続秒数（既定 1.5。話者分離ありのとき） |
+| `--vad-threshold X` | 【実験用】VADの閾値（0<X<1）。**通常は指定しない**。詳細は下の「実験用VAD」 |
+| `--merge-gap` / `--fragment-gap` | 雑誌版で同一話者の発言を結合する最大の時間差（秒。既定 2.0 / 明らかな断片の続きは 3.0） |
+| `--raw-only` | 逐語録と JSON だけ |
+| `--skip-edit` | 雑誌版（03）を作らない（raw と clean のみ） |
+| `--skip-transcription` | キャッシュ済みの認識・話者分離を再利用して**編集だけやり直す** |
+| `--force` | キャッシュを無視 |
+| `--no-diarize` | 話者分離しない |
+| `--editor rule\|local\|claude\|openai` | 整文方式。**標準は rule（無料・外部LLMなし）** |
+| `--diarization-model` | 話者分離モデル（既定 community-1） |
+| `--mark-unclear-logprob -1.0` | 【実験的】低信頼の発言を `[聞き取り不明 HH:MM:SS]` に置換（原文は JSON の `unclear` に退避） |
+
+対応形式: mp3 / wav / m4a / mp4（ほか ffmpeg が読めるもの）。元ファイルは変更しません。一時ファイルは `temp/`。
+
+### 実験用VAD（`--vad-threshold`）
+
+```bash
+# 標準（推奨）: WhisperX の既定VAD（onset 0.5 / offset 0.363）をそのまま使う
+python transcribe_interview.py interview.m4a --output-dir output/default
+
+# 実験: VADの閾値を明示する。結果は必ず別の --output-dir に出す
+python transcribe_interview.py interview.m4a --vad-threshold 0.3 --output-dir output/vad_03
+```
+
+1. **実験用オプションです。**
+2. **省略時は、現在の既定VAD（onset 0.5 / offset 0.363）をそのまま使います。** 省略時の挙動・キャッシュ・出力は従来から変わりません。
+3. **値を下げても精度が良くなるとは限りません。**
+4. Track-81（20分・5話者と推定）の比較では、閾値を下げる（0.4 / 0.3 / 0.2）と**未転写率は減りました**（標準 17.2% → 11.7〜12.3%）が、**反復幻覚（0.4・0.2）や実発話の欠落（0.3）が増える条件**がありました。人間の聞き取り確認では、4区間とも標準が最も実音に近い結果でした。
+5. **通常利用では指定しないことを推奨します。**
+6. 未転写が多い音源（`review_required.md` の「ASR未転写候補」が多い音源）の**比較実験**に使います。
+7. **比較時は別の `--output-dir` を使ってください**（上書き事故の防止）。`--output-dir` は指定どおりに使い、自動では変更しません。標準は `output/default/`、実験は `output/vad_0.3/` のように分けることを強く推奨します。
+
+`--vad-threshold 0.3` が内部で設定するもの: `whisperx.load_model(..., vad_options={"vad_onset": 0.3, "vad_offset": 0.3})`（**onset と offset の両方を同じ値**にします。Track-81 の比較実験と同じ方法です）。0 < X < 1 の範囲だけ受け付けます（範囲外・数値以外はエラー）。
+
+実験時のしくみ:
+- **記録**: 実行ログに `Experimental VAD threshold: 0.3`、`review_required.md` の「処理に関する注意」・`01_raw_transcript.md` の冒頭・`run_metadata.json`（`vad.mode` が `default` / `experimental`、onset・offset）に「実験用VAD」と記録します。標準の実行も `run_metadata.json` に `default` と記録されるので、後からファイルだけ見て条件を判別できます。
+- **キャッシュ**: ASR結果の署名（`_sig`）に VAD設定を含め、標準・0.4・0.3・0.2 は別キャッシュです（実験は `cache/<名前>/vad_<X>/` 配下。標準は従来どおり `cache/<名前>/` 直下で、既存キャッシュはそのまま使えます）。alignment も ASR結果ごとに分けます。話者分離は VAD に依存しないので共有します（別の音声から作られたものは使いません）。
+- **自動化はしません**: 自動最適化、音源ごとの自動再実行、最適値の自動選択は行いません。
+
+### 再実行・再開
+- 失敗後の再実行: **同じコマンドをもう一度**。完了済みの段階（文字起こし／alignment／話者分離／LLMのchunk）はキャッシュから再利用されます。
+- 編集だけやり直す（speakers.yaml 変更、モデル変更、プロンプト調整後など）:
+  `python transcribe_interview.py interview.m4a --skip-transcription`
+  LLMのchunk結果は `cache/<名前>/edit_cache.json` に入力ごとに保存され、同じ入力なら再課金されません。
+- 話者数を変えて話者分離だけやり直す: `--min-speakers/--max-speakers` を変えて実行（話者分離のキャッシュは設定が変わると無効化）。
+
+## speakers.yaml
+
+```yaml
+SPEAKER_00: 真坂
+SPEAKER_01: 寺戸
+SPEAKER_02: 眞庭
+```
+
+- 書かなかった話者は `話者A` `話者B` …、判定が曖昧な発言は `話者不明` になります（人物を推測で確定しません）。
+- **SPEAKER番号は音声ごと（実行ごと）に入れ替わり得ます。** 実行ログに出る「各話者の最初の発言」と見比べて対応を確認してください。
+- 重なり発話などで話者が割れる発言は `speaker_uncertain: true` となり、`review_required.md` に載ります。
+
+## dictionary.yaml
+
+```yaml
+people: [真坂雅, 寺戸隆之]
+organizations: [OKAMI企画]
+places: [由利本荘市]
+projects: [アキタウミヨコお座敷シアター]
+```
+カテゴリ名は自由、値は文字列のリスト。標準での用途は次のとおりです。
+
+1. 似ているが一致しない語（例: 「由利本庄市」）を `review_required.md` に**候補として**表示
+2. 品質チェックで「原文にない固有名詞が編集で現れていないか」の判定に使用
+
+**辞書は Whisper の初期プロンプトには、標準では渡しません。** 実音声（3人の雑談150秒）で、辞書をプロンプトに渡すと
+認識が約23%減り（414字。プロンプトなしは540字）、一部の発話が欠落したためです。人名・団体名の多い対談で
+認識の手がかりとして使いたい場合のみ `--dictionary-prompt` を指定してください（先頭約120字ぶんを渡します。
+`--neutral-prompt` とは同時に指定できません。連結はしません）。
+
+### 中立ASRプロンプト（標準OFF・`--neutral-prompt` で使用）
+**初期プロンプトは標準では渡しません**（`python transcribe_interview.py interview.m4a` → プロンプトなし）。
+
+Whisper はプロンプトが無いと、音源によっては日本語の句読点をほとんど出さず、文境界が崩れて話者境界が語の途中で
+切れやすくなります（実測：Track-78 で句点0・語途中の話者境界20）。そこで、**内容に依存しない句読点つきの自然な文**を
+見本として渡すオプションを用意しています。
+
+```
+python transcribe_interview.py interview.m4a --neutral-prompt
+```
+```
+はい、そうですね。ええと、それはですね、こういうことなんです。
+```
+
+- **中立プロンプトは日本語の句読点・文境界を改善することがある一方、音源によって相槌の増加や speaker 境界の悪化が確認されたため、標準ではOFFです。**
+- **Track-78 のように句点がほとんど出ない場合は、`--neutral-prompt` を試してください**（句点 0→39、語途中の話者境界 20→6）。
+- 実測の副作用（Track-79）：チャンク末尾に短い「はい。」が別話者の独立した発言として2件増えた（誘発の可能性）／英語せりふ区間で話者境界が悪化した（2→7）。
+- 辞書語・人名・地名・団体名・話題・カタカナ語を含みません。指示文にもしません（指示文は欠落と幻覚が増えたため）。
+- 初期プロンプトの扱い：**指定なし → プロンプトなし／`--dictionary-prompt` → 辞書プロンプトのみ／`--neutral-prompt` → 中立プロンプトのみ**。辞書と中立は連結せず、**両方を指定するとエラー**になります。
+- 欠落量はプロンプトやチャンク境界で大きく揺れるため、**音源ごとに `--neutral-prompt` あり・なしを比較**することを勧めます。
+辞書を根拠にした**自動置換はしません**。
+
+## 出力ファイル（`--output-dir`、既定 `output/`）
+
+| ファイル | 内容 |
+|---|---|
+| `01_raw_transcript.md` | 逐語録。フィラー保持、各発言にタイムコード |
+| `02_clean_transcript.md` | 読みやすい逐語録。発言単位のまま、フィラー・語頭の言い直し・重複・単独の相槌のみ整理 |
+| `03_magazine_interview.md` | 対談原稿の素材（細切れ発言の結合・段落分け・句読点整理。ルールベース） |
+| `transcript.json` | 発言ごとの構造化データ |
+| `review_required.md` | 品質チェックの要確認一覧 |
+
+### transcript.json
+発言（turn）ごとに `speaker_id` / `speaker_name` / `start` / `end` / `raw_text` / `clean_text` / `edited_text` に加え、
+`segment_ids`（WhisperXの元セグメント）、`words`（文字ごとの `[文字, start, end, score]`）、`edit_source`
+（`llm` / `rule` / `rule-fallback` / `llm-rejected`）、`llm_rejected_text` などを持ちます。
+編集は**発言IDごと**に行うため、雑誌版のどの文も元のタイムコードへ遡れます（空文字＝削除、`*_dropped`＝削除フラグ）。
+
+### 出力例（合成音声で生成。話者分離は擬似区間）
+```markdown
+# 逐語録（sample_dialogue）
+00:00:00
+
+真坂：
+えーと、今日はですね、この企画について話していきたいと思います。
+
+00:00:06
+
+寺戸：
+はい。
+```
+```markdown
+# 対談（sample_dialogue）
+真坂：
+今日はですね、この企画について話していきたいと思います。そもそもこれを始めたのは、2024年の10月ごろなんです。
+
+寺戸：
+そうだったんですか。
+
+真坂：
+はい、参加者は30人くらいでした。
+```
+```markdown
+## 00:32:14　[重要] 年月日の追加
+RAW:
+> 来年の5月くらい
+EDITED:
+> 来年の5月くらい
+LLMの提案（不採用・clean版へ差し戻し）:
+> 来年5月15日
+理由：
+原文に存在しない年月日「15日」が追加されています。
+```
+
+## 編集と品質チェックの方針
+
+| | 01 逐語録 | 02 clean | 03 対談原稿 |
+|---|---|---|---|
+| フィラー（えー・あのー・そのー等）・語頭の言い直し・同語反復 | 残す | 除去 | 除去 |
+| 単独の相槌（はい・うん・そうですね…） | 残す | 除去（※） | 除去（※） |
+| 発言の単位 | turn | turn（結合しない） | 同一話者の連続発言を結合、長ければ段落分け |
+| 句読点・空白・記号 | そのまま | そのまま | 整理（全角化・重複除去・段落末の句点） |
+| 話者名・順序 | 保持 | 保持 | 保持（別話者が挟まれば結合しない） |
+
+※ 質問への返答（直前が「？」）・「？」を含む発言・話者が確定していない発言は残します。
+
+- **文面は書き換えません。** 「そんな」を「そんなに」にする等の補完・言い換え・作文はしません。削る・つなぐ・句読点を整えるだけです。
+- 「まあ」「なんか」「あの」「その」は、読点を伴う文節頭のときだけ除去します（「あの人」「その後」を壊さないため）。助詞に直付けの「それはまあ、」のような用法は意味を持つ場合があるので残します。
+- 段落分け: 文末で、間が1秒以上あり120字以上たまったとき、または240字を超えたとき。
+- **結合の条件（03）**: 同じ話者であっても、発言間の実質的な無音が `--merge-gap`（既定2.0秒）を超えれば結合せず、話者名を再掲します（直前が助詞・接続表現や話者交替で途中切れの発言なら `--fragment-gap` の3.0秒まで）。間に話者不明の発言が挟まる場合も結合しません。
+- **句点の付与（03）**: 文として確実に終わっている語尾（〜です／〜ます／〜た／〜ね 等）にだけ付けます。話者交替などで文の途中で切れた発言、助詞・接続表現で終わる発言、判定が不確かなものには付けず、元の文字列を維持します。
+- **自動チェック**（`quality_check.py`）: 数字・年月日・金額の追加/変更、固有名詞の追加、別話者の文言混入、大量削除、`[聞き取り不明]` の補完、否定の増減・「たぶん」「〜くらい」等の強弱語の増減、内容の乖離、話者判定の不確実。幻覚・脱落は次節の `hallucination.py` が扱う。
+- LLMを任意で使った場合、重大な逸脱（数字・固有名詞・話者・聞き取り不明の変化など）は不採用にして整文済みの文に差し戻し、LLM案を `review_required.md` に残します。長時間音声は話者交替・間・文末を見て約2,500字ごとに分割し、直前3発言を文脈として重複させます。
+
+## 幻覚・脱落の検出（`review_required.md`）
+
+方針は「**確実性の高いものだけ不採用、不確かなものは要確認**」です。正しい短い発話を消すほうが危険だからです。
+**01_raw と `transcript.json` の `raw_text` は常に原文のまま**で、不採用は 02_clean／03_magazine にだけ作用します。
+
+「反復だから HIGH」ではなく、**反復の種類を分類してから確度を決めます**。
+
+| 確度 | 意味・例 | 扱い |
+|---|---|---|
+| **HIGH** | 人間確認なしでも自動不採用が比較的安全なもの。既知の典型幻覚定型句（「ご視聴ありがとうございました」「チャンネル登録」等）／語句・文の明白な異常反復（短い語句が6回以上、句・文の長さ（6字以上）が5回以上連続など） | **自動不採用**（02/03から除く。反復は1回分に畳む）。`--keep-hallucinations` で無効化 |
+| **MEDIUM** | 強く怪しいが実発話の可能性があるもの。音声末尾の短い発言／挨拶的な短文が無音・低信頼・話者不明などと**重なった**とき／読点で区切った強調的な反復（「たまたま、たまたま、たまたま」）／4回程度の反復 | 要確認のみ（削除しない） |
+| **LOW** | 確認する価値はあるが根拠が弱いもの。長い無音の直前・チャンク末尾の相槌的な短い発言／話者境界付近の断片 | 要確認のみ（削除しない） |
+| **NON_SPEECH** | 笑い声などの非言語発声の反復（「あっはっは…」「ははは」「ふふ」「へへ」「ひひ」「ええええ」…）。幻覚ではない可能性が高い | **削除しない**（01/02/03に残る）。参考表示のみ |
+
+- **笑い声**は「笑」などの特定語の例外ではなく、**非言語の文字（は・ひ・ふ・へ・ほ・わ・あ・う・え・お・っ・ん）だけでできた単位の反復**を別種として扱います。笑い声そのものを文章に作文・要約しません。
+- **同一文の反復**は、句読点・？！・空白・改行・speaker境界・segment境界の違いを正規化した**検査専用の時系列window**（時間差3秒以内で連なる最大40発言。transcriptは結合しません）で、①完全一致の反復（句・文の長さ40字まで）と、②言い回しが少し揺れた反復（類似度0.85以上が4回以上）を検出します。speakerをまたぐだけでは幻覚扱いしません。同じ事象を窓ごとに重複して数えないよう、大きな反復に含まれるものは1件にまとめます（事象数も表示）。
+- **孤立した挨拶**（「ありがとうございました」等）は通常の発話でも非常に多いので、**文字列だけでは判定しません**。発言末尾にあるその句が、「直前の発話から5秒以上離れて孤立」「チャンク末尾／音声末尾」「話者不明・不確実」「認識信頼度が低い」「句以外が6字以下」のうち、孤立かチャンク末尾を含む複数が**重なったときだけ**要確認（3つ以上でMEDIUM、2つでLOW）にします。削除はしません。
+- **音声末尾・無音直前の短い発言**は、それだけを理由に削除しません。要確認の発話は、単独相槌の自動削除（02/03）の対象からも外します。表示項目：タイムコード・話者・テキスト・長さ・直後の無音・チャンク末尾か・音声末尾か。
+- **speaker境界要確認**：語の途中で話者が切り替わった可能性がある断片を列挙します。話者の付け替え・文字列のつなぎ直しはしません。
+- **ASR未転写候補**：話者分離が発話ありと判定したのに文字起こしが無い区間を話者ごとに列挙します（幻覚ではなく脱落の可視化。削除ではなく警告）。最小秒数は `--min-untranscribed-sec`（既定1.5秒。3分の実音声2本で6〜14件になる値）。HIGH幻覚として不採用にした文字は「文字なし」として数えます。
+
+## 既知の制限（必ず読んでください）
+
+- **ASRの欠落量はプロンプトやチャンク境界で大きく揺れます**（実音声で、似た趣旨の短いプロンプト間でも未転写率が17.8〜33.8%と変動）。初期プロンプトは標準では渡しません。`--neutral-prompt` は句点がほぼ出ない音声向けのオプションで、音源によっては相槌の増加や話者境界の悪化があります。`output/quality_report.md` の検証を参照。
+
+- **自動チェックは機械的なヒューリスティックで、正確性の保証ではありません。** 公開前に `review_required.md` と、重要な発言は音声での確認を。
+- **「聞き取り不明」の自動検出は弱いです。** WhisperXの文字スコアは正しい文字でも 0 になることがあり、信頼できません。既定では発言の平均対数確率が低い発言を「参考」として列挙するだけで、本文は置換しません（`--mark-unclear-logprob` は実験的）。Whisperは聞き取れない箇所に**もっともらしい文を出力することがあります**。固有名詞・数字は特に聞き直してください。
+- 無音区間で出やすい幻覚定型句（「ご視聴ありがとうございました」等）は検出して参考に出します。
+- 話者分離は完全ではありません。**短い別話者の発話（0.6秒未満・4文字未満）は、短いという理由では前後の話者へ吸収しません**（実在の相槌・応答を消さないため。Track-81の人間確認で、「うーん」の消去や別人の発言の吸収が確認されたため）。前後が同一の確定話者で、語の断片であることが明らかなとき（「ー」など）に限り前後へ戻します。独立した応答語（うん・はい・そう・ええ・いや・へえ・なるほど…）、pyannoteが0.4秒以上の独立した発話として支持している区間、overlap（重なり）は常に残します。残した短い発話は `review_required.md` の「短い別話者の発話（吸収していません）」に一覧されます。その分 turn と話者不明が増え、03 は細切れになります（誤って実発話を消すより安全側）。重なり発話は `話者不明` になります。
+- **日本語の語の途中で話者を分けません（語単位の割当）。** WhisperX の日本語 alignment は1文字=1wordで、文字ごとに話者を決めると語の途中（「本」/「当に」）で分かれます。そこで形態素（`janome`）を単位に、構成する文字へのpyannoteとの重なりを合計して多数決し、語全体を1人にします（Track-81: 語の内部の境界 142件→13件）。長い連続（笑い声など8文字超）は語ではないので対象外。`janome` が無い場合は文字単位のままで、`review_required.md` に注記します。話者数・短い割り込み・重なり発話の扱いは変わりません。
+- **長い音源の話者分離**は15分を超えると5分チャンク（30秒重なり）で保存・再開できる方式になり、チャンク間の話者は埋め込み類似度と重なり区間の同時発話で対応付けます。自信のない対応は別の話者のまま `review_required.md` に「チャンク間speaker対応 要確認」と出ます（同じ人物が複数の話者に分かれることがあります）。
+- ルール整文は保守的です。雑誌の完成稿にはなりません（語尾の統一・言い換え・要約はしません）。人が校正する前提の素材です。
+
+## トラブルシューティング
+
+| 症状 | 対処 |
+|---|---|
+| `ffmpeg が見つかりません` | ffmpeg を導入し PATH を確認 |
+| 話者が全員「話者不明」 | `HF_TOKEN` 未設定／モデル利用条件に未同意。`review_required.md` の注意欄にエラー内容 |
+| alignment で `punkt_tab not found` | `python -c "import nltk; nltk.download('punkt_tab')"`。ネットワークがプロキシ経由でNLTKに拒否される場合は、<https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/tokenizers/punkt_tab.zip> を `~/nltk_data/tokenizers/` に展開。失敗しても単語時刻なしで続行します |
+| CUDA out of memory | `--batch-size 4`、`--compute-type int8`、小さいモデル |
+| CPUで終わらない | `--model small`/`medium`。所要時間の目安（未実測）: CPUでは音声長の1倍前後以上 |
+| 任意のLLM(`--editor local`等)が失敗する | 該当chunkはルール整文で代替され、再実行で続きから。URL・モデル名を確認 |
+| 整文を変えたい | `text_utils.py` のフィラー規則等を調整し `--skip-transcription` で再編集（認識・話者分離はキャッシュ再利用） |
+
+## テスト
+
+```bash
+python -m pytest tests -q          # 178件。WhisperX・音声不要（偽LLMサーバを使用）
+python tests/make_sample_audio.py samples/sample_dialogue.m4a   # open_jtalk で合成音声を作る（任意）
+```
+
+## ファイル構成
+
+```
+transcribe_interview.py   CLI（段階制御・キャッシュ・失敗耐性）
+whisperx_runner.py        ffmpeg前処理 / WhisperX文字起こし・alignment
+diarization.py            話者分離 / speakers.yaml
+transcript_builder.py     発言(turn)化・結合・ルール整文・Markdown/JSON出力
+editor.py                 LLM整文（プロバイダ切替・chunk分割・プロンプト）
+quality_check.py          raw と edited の比較 → review_required.md
+hallucination.py          幻覚・脱落の検出（定型句・反復ループ・音声末尾/無音直前・話者境界・ASR未転写）
+dictionary.py / text_utils.py
+config/  speakers.yaml dictionary.yaml     output/  cache/  temp/
+```
+
+## 話者不明の細切れの再結合（候補2）
+
+話者不明の発話を前後の既知話者へ**吸収しません**。細切れになった同一発話を**話者不明のまま**、文字列の連結だけで再結合します（作文・補完なし）。
+- 自動で変更するのは **HIGH** のみ（話者不明どうしが連続、間0.3秒以内、重なり・pyannote支持・応答語の問題なし、など）。
+- **MEDIUM**（間0.3〜0.5秒、重なり疑い、片側のみ不明 など）は `review_required.md` の「話者不明の細切れ」に候補として表示（変更しません）。
+- **LOW**（応答語・pyannote支持のある既知発話・強い重なり・間0.5秒超）は変更しません。
+
+## 人間確認済みの話者対応でチャンク間統合をやり直す（候補3・検証版：人間確認待ち）
+
+**現時点は検証版です。確定した改善ではなく、既定の挙動にもしていません**（`--speaker-constraints` を指定したときだけ動作。R24の話者が聞き比べで確認されるまで、採用・修正・revertを保留）。
+
+長い音声のチャンク方式では、チャンク間の話者対応が途中で誤ると、同じ人が別の話者（例: F）として残ります。
+聞き比べで『同じ人物／別人』と確認できた `(chunk, local)` を `--speaker-constraints` で渡すと、保存済みのチャンク結果から**統合だけ**をやり直します（音声・モデル不要）。
+書式は `config/speaker_constraints.example.yaml`。
+- 単純なラベル置換はしません。統合先と**同じチャンクで併存する（同時に話す）local**は別人なので、その連鎖を、未使用で埋め込みが近い別の全体話者へ付け替えてから統合します。条件を満たせなければ**何も変えず**、要確認として報告します。
+- 前チャンクの2人以上と有意に同時に話す local（二人分を含む可能性）は『曖昧』として `diarization_chunks/merge_report.json` の `ambiguous` に記録します。
+- 人数で全体を固定することはしません。制約を指定しない通常実行の挙動は変わりません。
+
+## localスピーカー内の複数人物の混在を分析する（`--analyze-local-split`・分析のみ・既定OFF）
+
+pyannoteのlocal speaker（チャンク内のSPEAKER_xx）は1人とは限りません（例: Track-81 chunk9 local_00 は C→B が混在）。
+`--analyze-local-split` を付けたときだけ、localごとに『他のlocalと重ならない1.5秒以上の単独区間（anchor）』の声紋を、人物ごとの代表embeddingと比べ、
+`local_split_report.json` / `local_split_review.md` を出力します。**transcript・話者ラベル・01/02/03・diarization結果は一切変更しません**（Step 1）。
+- 参照話者は `--local-split-refs YAML`（書式は `config/speaker_constraints.example.yaml`）。省略時は `--speaker-constraints`。`--speaker-constraints` は候補3の再統合も行うので、分析だけなら `--local-split-refs` を使います。
+- anchor: 同じlocalのsegmentを隙間0.3秒以下でつなぎ、他localの発話を除き、1.5秒以上だけ。長いものは先頭10秒でembedding。各anchorに top1/top2・margin・confidence（HIGH: margin≥0.20かつtop1≥0.40 / MEDIUM: 0.10〜 / LOW: 0.05〜 / UNKNOWN）。
+- block: 同じ人物候補が連続するanchor。有効な根拠は『anchor2本以上・合計4秒以上・HIGH1本以上、またはMEDIUM2本以上』。60秒以内に3回以上入れ替わるlocalは unstable（判定不能）。
+- 分割提案: 前後の両blockが十分な根拠（各側2本以上・4秒以上・HIGH1本以上）で、人物が異なり、同時発話に矛盾しない場合のみ **HIGH**。境界は『最後の前anchorの終了〜最初の後anchorの開始』を **境界未確定ゾーン**として記録し、どちらの話者にも割り当てません。**HIGH でも書き換えません。**
+- 隣接チャンクで同じ音声（60%以上重なるanchor）は1つの証拠として数え、対応するlocalの組でまとめて判定します。
+- 根拠が足りないlocalは `insufficient_evidence`、片側の根拠が不足なら `mixed_suspected: true`。`--local-split-persons B,C` で参照話者を絞った感度分析ができます（他の人物の声は絞った人物のどちらかに寄ります）。
+- 55分の音声で約1分（CPU）。ASR・alignment・diarizationは実行しません。
+
+## local split の適用（`--apply-local-split`・検証機能・既定OFF・opt-in）
+
+`--analyze-local-split` の結果のうち、**HIGH proposal** と、**両側blockが十分な根拠を持つMEDIUM proposal** だけを、実際のspeaker assignmentへ反映します。
+**通常機能への昇格はしていません**（別の実対談音声でもHIGH/MEDIUMを数件人間確認し、誤配分が十分少ないと確認できるまで既定OFF）。指定しない通常実行の出力は変わりません。
+
+**通常結果と混ぜないでください（別の `--output-dir` を使う）。**
+```
+# 標準
+python transcribe_interview.py interview.m4a --output-dir output/default
+
+# local split適用（検証）
+python transcribe_interview.py interview.m4a \
+    --analyze-local-split --apply-local-split \
+    --local-split-refs config/refs.yaml \
+    --output-dir output/local_split_applied
+```
+- 適用するもの（一般ルール。人間確認の結果はコードに入っていません）: HIGH、または MEDIUM のうち **切替の両側ともanchor2本以上・合計4秒以上**、block内の人物候補が一貫、unstableでない、同時発話制約（変更先の全体話者が同じchunkの別localとして同時に話さない）に違反しない、両側の人物の全体話者が既知、のすべてを満たすもの。
+- 自動変更しないもの（reviewに残す）: mixed_suspectedのみ／片側のanchor不足／unstable／LOW／UNKNOWN／同時発話の矛盾／identity不足／overlap主体の区間。
+- **sub-segment単位**: 確定した前blockと後blockの時間範囲の、そのlocalの発話だけを人物の全体話者へ付け替えます（local全体の一括付け替えはしない）。`--apply-local-split` のときは `--speaker-constraints`（候補3のlocal一括の付け替え）は行いません。
+- **境界未確定ゾーン**は現在のspeaker assignmentを維持します（話者不明にはしません）。`UNRESOLVED SPLIT ZONE` として、start/end/長さ/turn数/現在のspeaker/前後blockの人物を `local_split_changes.md` と `review_required.md` の注意欄に出します。ゾーンを話者不明にする機能は未実装です（将来、`--unknown-local-split-boundaries` のような別opt-inにする案）。
+- 変更履歴: `local_split_applied.json`（機械可読）と `local_split_changes.md`（タイムコード・BEFORE/AFTER・proposal・根拠・ゾーン）。`transcript.json` の各turnに `original_speaker_id` / `original_speaker_name` / `local_split_changed` が付きます。
+- 前提: 保存済みのチャンク（diarization_chunks/）が必要。重い処理（ASR・alignment・diarization）は再実行しません。
