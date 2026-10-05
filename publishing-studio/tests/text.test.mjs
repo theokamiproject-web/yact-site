@@ -13,6 +13,15 @@ test('frame capacity comes from measured geometry (chars/line x lines x columns)
   assert.equal(frameChars(frame({ h: 2 })), 0);
 });
 
+test('multi-column frames: usable lines are columns x lines minus one slack line per column', () => {
+  assert.equal(frameLines(frame({ cols: 2, w: 124, gap: 4 })).lines, 18);
+  // 2 columns x 10 lines hold 18 lines of text: a 19-line article overflows page 1 into page 2
+  const blocks = Array.from({ length: 19 }, () => ({ type: 'a', md: 'あ'.repeat(19) })); // one full line each
+  const { pages } = allocate(blocks, [frame({ cols: 2, w: 124, gap: 4 }), frame({ h: 200 })]);
+  assert.equal(pages[0].length, 18);
+  assert.equal(pages[1].length, 1);
+});
+
 test('allocation: fills page 1 first, remainder goes on; the last page takes everything left', () => {
   const blocks = [P(60), P(60), P(60), P(60)]; // 3.05 lines each -> 4 lines each (indent)
   const { pages } = allocate(blocks, [frame(), frame()]);

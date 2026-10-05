@@ -1,0 +1,156 @@
+{
+ "M04": {
+  "name": "Q/A orphan rule removed",
+  "tests": "text.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "a question never ends a page without its answer (Q&A orphan rule)"
+  ]
+ },
+ "M11": {
+  "name": "safe-area check disabled",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "broken image -> P18 FAIL; safe-area violation -> P21 WARNING; short bleed -> P23 WARNING"
+  ]
+ },
+ "M12": {
+  "name": "image resolution check disabled",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "low image resolution: <100ppi FAIL, <200ppi WARNING"
+  ]
+ },
+ "M13": {
+  "name": "bleed-box check disabled",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "wrong trim size -> P11 FAIL; invalid bleed (BleedBox == TrimBox) -> P12 FAIL"
+  ]
+ },
+ "M14": {
+  "name": "blind pack leaks the flatplan",
+  "tests": "pipeline.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight"
+  ]
+ },
+ "M15": {
+  "name": "contents overflow check removed (validate)",
+  "tests": "model.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "CONTENTS_OVERFLOW / LAYOUT_OVERFLOW are errors, raised from the measured layout probe"
+  ]
+ },
+ "M16": {
+  "name": "contents completeness check removed (preflight)",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "contents entry lost -> P31 FAIL; orphan lines -> P29 WARNING (heuristic); under-filled page -> P30 WARNING (heuristic)"
+  ]
+ },
+ "M17": {
+  "name": "publishing boundary: not-ignored check removed",
+  "tests": "boundary.test.mjs --test-name-pattern=NOT ignored|REFUSE",
+  "result": "KILLED",
+  "by": [
+   "private issue inside the work tree and NOT ignored => FAIL",
+   "validate / build / all REFUSE an issue that private source would make public; the override is explicit"
+  ]
+ },
+ "M18": {
+  "name": "manuscript HTML passes through unescaped",
+  "tests": "security.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "manuscript HTML is escaped, never executed: script/style/iframe/object/embed/on*=/javascript:/remote image",
+   "safe Markdown: allowed element list is exactly what the renderer can emit"
+  ]
+ },
+ "M19": {
+  "name": "image URL percent-encoding removed",
+  "tests": "security.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "asset names with Japanese, spaces, \"\\#\", parentheses render in build, render and PDF"
+  ]
+ },
+ "M20": {
+  "name": "Chromium sandbox disabled by default",
+  "tests": "security.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "Chromium sandbox policy: on by default, off only explicitly or in the managed root container"
+  ]
+ },
+ "M21": {
+  "name": "theme external-resource check removed",
+  "tests": "security.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "theme CSS cannot load remote resources"
+  ]
+ },
+ "M22": {
+  "name": "critic --reset overwrites authored reviews",
+  "tests": "critic-protection.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "--reset REFUSES while any review holds work, and changes nothing",
+   "--reset --force archives every review file (timestamped) before writing empty templates"
+  ]
+ },
+ "M23": {
+  "name": "stale reviews gate the new output",
+  "tests": "critic-protection.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "reviews are bound to the output: matching source_hash is fresh, anything else is stale and does not gate",
+   "preflight P27: no review -> MANUAL CHECK; stale review -> MANUAL CHECK; fresh review with open HIGH -> FAIL"
+  ]
+ },
+ "M24": {
+  "name": "page-relative token replaced by a millimetre literal",
+  "tests": "layout-tokens.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "tokens.css defines the three families and page-relative margins (no mm margins)"
+  ]
+ },
+ "M25": {
+  "name": "density heuristics return nothing",
+  "tests": "density.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "accidental sparseness is flagged; declared intent (with a reason) is not; quote/photo pages never are"
+  ]
+ },
+ "M26": {
+  "name": "orphan-line measurement disabled",
+  "tests": "metrics.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "orphan lines: a last line of one or two characters is reported, a full last line is not"
+  ]
+ },
+ "M27": {
+  "name": "undefined grid helper class (c-1-5 removed)",
+  "tests": "layout-tokens.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "every grid helper class used by a component (c-1-5, c-all, …) is defined in the theme"
+  ]
+ },
+ "M28": {
+  "name": "text capacity ignores measured columns",
+  "tests": "text.test.mjs",
+  "result": "SURVIVED",
+  "by": []
+ }
+}
