@@ -210,6 +210,7 @@ def build_blocks(anchors: list[dict]) -> tuple[list[dict], bool, list[dict]]:
         valid = len(an) >= BLOCK_MIN_ANCHORS and sec >= BLOCK_MIN_SEC and (n_high >= 1 or n_med >= 2)
         out.append({"person": b["person"], "start": an[0]["start"], "end": an[-1]["end"], "anchors": len(an), "total_sec": sec,
                     "high": n_high, "medium": n_med, "valid": valid,
+                    "anchor_list": [{k: a.get(k) for k in ("chunk", "local", "start", "end", "duration", "top1", "top1_sim", "top2", "top2_sim", "margin", "confidence", "shared_with")} for a in an],
                     "high_ok": len(an) >= BLOCK_MIN_ANCHORS and sec >= BLOCK_MIN_SEC and n_high >= 1})
     return out, unstable, changes
 
@@ -265,7 +266,9 @@ def assess_unit(anchors: list[dict], members: list[tuple[int, str]], seg_by_chun
         res["proposed_splits"].append({"from_person": prev["person"], "to_person": nxt["person"], "confidence": conf,
                                        "zone_start": zone["start"], "zone_end": zone["end"], "zone_sec": round(zone["end"] - zone["start"], 2),
                                        "speech_in_zone_sec": speech_in_zone, "assigned_to": None, "why": why,
-                                       "conflicts": conflicts, "applied": False})
+                                       "conflicts": conflicts, "applied": False,
+                                       "prev_block": prev, "next_block": nxt, "unit_unstable": unstable,
+                                       "members": [f"chunk{k}:{l}" for k, l in members]})
         res["unresolved_zones"].append({"start": zone["start"], "end": zone["end"], "speech_sec": speech_in_zone, "assigned_to": None,
                                         "reason": "境界未確定（最後の前speaker anchorの終了〜最初の後speaker anchorの開始）"})
     if res["proposed_splits"]:
@@ -352,10 +355,12 @@ def analyze(chunks: list[dict], embed: Embedder, refs: dict[str, np.ndarray], de
             if abs(q["zone_start"] - prop["zone_start"]) < 1.0 and abs(q["zone_end"] - prop["zone_end"]) < 1.0 \
                     and q["from_person"] == prop["from_person"] and q["to_person"] == prop["to_person"]:
                 q["units"].append(unit)
+                q["members_all"] = sorted(set(q["members_all"]) | set(prop["members"]))
                 if _RANK[prop["confidence"]] > _RANK[q["confidence"]]:
-                    q["confidence"] = prop["confidence"]
+                    q.update(confidence=prop["confidence"], prev_block=prop["prev_block"], next_block=prop["next_block"],
+                             conflicts=prop["conflicts"], why=prop["why"])
                 return
-        proposals.append({**prop, "units": [unit]})
+        proposals.append({**prop, "units": [unit], "members_all": sorted(prop["members"])})
     for key, r in list(singles.items()):
         for pr in r["proposed_splits"]:
             add(pr, r["members"])
@@ -555,5 +560,211 @@ def write_reports(rep: dict, out_dir) -> tuple[Path, Path]:
     for e in rep["locals"]:
         L.append(f"| {e['chunk']}:{e['local'][-2:]} | {e['speech_sec']}s | {e['anchor_count']} | {e['state']} | {e['confidence']} | {str(e['mixed_suspected']).lower()} |")
     L += ["", "注意: まだtranscriptへ反映していない（分析のみ）。話者ラベル・turn・01/02/03は変更していません。"]
+    mp.write_text("\n".join(L) + "\n", encoding="utf-8")
+    return jp, mp
+
+
+# ------------------------------------------------------------------ Step 2: 適用（opt-in: --apply-local-split）
+APPLY_MIN_ANCHORS = 2        # MEDIUM適用: 切替の両側ともanchor2本以上
+APPLY_MIN_SEC = 4.0          # 〃 両側とも合計4秒以上
+
+
+def person_globals(persons: dict[str, list[tuple[int, str]]], mappings: list[dict], chunks: list[dict]) -> tuple[dict[str, str], dict[str, dict]]:
+    """人物（人間確認済みのanchor local）→ 全体話者。anchor localの発話量が最も多い全体話者を、その人物の全体話者とする。
+    返り値: (人物→全体話者, 人物→{全体話者: 発話秒})。人物のanchorが複数の全体話者に分かれている場合は、そのまま記録する（統合はしない）。"""
+    by = {c["index"]: c for c in chunks}
+    out, detail = {}, {}
+    for name, nodes in persons.items():
+        acc: dict[str, float] = {}
+        for k, l in nodes:
+            if k >= len(mappings) or l not in mappings[k]:
+                continue
+            sp = sum(s["end"] - s["start"] for s in by[k]["segments"] if s["speaker"] == l)
+            acc[mappings[k][l]] = acc.get(mappings[k][l], 0.0) + sp
+        if acc:
+            out[name] = max(acc, key=lambda g: acc[g])
+            detail[name] = {g: round(v, 1) for g, v in acc.items()}
+    return out, detail
+
+
+def _block_brief(b: dict) -> dict:
+    return {k: b[k] for k in ("person", "start", "end", "anchors", "total_sec", "high", "medium", "valid")}
+
+
+def plan_apply(rep: dict, persons: dict[str, list[tuple[int, str]]], mappings: list[dict], chunks: list[dict]) -> dict:
+    """分析結果から、書き換えてよいsplit proposalを一般ルールで選び、sub-segment（localの時間範囲）単位のoverridesを作る。
+    適用するのは HIGH、および『両側のblockが十分な根拠を持つ』MEDIUM（各側 anchor2本以上・合計4秒以上・同時発話に矛盾なし・unstableでない・
+    両側の人物の全体話者が既知）だけ。それ以外はreviewに残す。境界未確定ゾーンは現在の割り当てを維持し、UNRESOLVED SPLIT ZONEとして記録する。
+    人間確認の結果などはここには埋め込まない。"""
+    pg, pg_detail = person_globals(persons, mappings, chunks)
+    seg_by = {c["index"]: c["segments"] for c in chunks}
+    applied, skipped, overrides, zones = [], [], [], []
+    taken: dict[tuple, list[tuple[float, float, str]]] = {}
+    for i, p in enumerate(rep["proposed_splits"], 1):
+        pid = f"S{i}"
+        prev, nxt = p["prev_block"], p["next_block"]
+        reasons = []
+        if p["confidence"] not in ("HIGH", "MEDIUM"):
+            reasons.append(f"confidence {p['confidence']} は適用対象外")
+        for nm, b in (("切替前", prev), ("切替後", nxt)):
+            if b["anchors"] < APPLY_MIN_ANCHORS or b["total_sec"] < APPLY_MIN_SEC:
+                reasons.append(f"{nm}のblockの根拠が不足（anchor {b['anchors']}本・{b['total_sec']}秒）")
+        if p.get("unit_unstable"):
+            reasons.append("unstable")
+        if p["conflicts"]:
+            reasons.append("同時発話制約に矛盾: " + "; ".join(p["conflicts"]))
+        for person in (p["from_person"], p["to_person"]):
+            if person not in pg:
+                reasons.append(f"人物{person}の全体話者が不明（identity不足）")
+        zone = {"proposal": pid, "start": p["zone_start"], "end": p["zone_end"], "duration": round(p["zone_end"] - p["zone_start"], 2),
+                "speech_sec": p["speech_in_zone_sec"], "prev_speaker": p["from_person"], "next_speaker": p["to_person"],
+                "members": p["members_all"], "current_speaker_policy": "現在のspeaker assignmentを維持（UNKNOWN化しない）"}
+        zones.append(zone)
+        ovs = []
+        if not reasons:
+            for blk in (prev, nxt):
+                g = pg[blk["person"]]
+                for m in p["members_all"]:
+                    k, l = int(m[5:].split(":", 1)[0]), m.split(":", 1)[1]
+                    if k >= len(mappings) or l not in mappings[k]:
+                        continue
+                    cur = mappings[k][l]
+                    has = [s for s in seg_by.get(k, []) if s["speaker"] == l and min(s["end"], blk["end"]) - max(s["start"], blk["start"]) > 1e-6]
+                    if not has or cur == g:
+                        continue
+                    # 変更先の全体話者が、同じchunkの別localとして同時に話していないか（同時発話制約）
+                    sim = [o for l2, g2 in mappings[k].items() if g2 == g and l2 != l
+                           for o in [sum(max(0.0, min(s["end"], blk["end"]) - max(s["start"], blk["start"])) for s in seg_by.get(k, []) if s["speaker"] == l2)] if o >= SIMUL_MIN_SEC]
+                    if sim:
+                        reasons.append(f"chunk{k}:{l} を{g}（人物{blk['person']}）へ変える範囲で、別のlocalが{g}として{sim[0]:.1f}秒同時に話している")
+                        break
+                    ovs.append({"chunk": k, "local": l, "start": blk["start"], "end": blk["end"], "speaker": g, "person": blk["person"],
+                                "from_global": cur, "proposal": pid})
+        if not reasons:
+            for o in ovs:                                   # 同じlocalの同じ範囲を別の人物にする重複は適用しない
+                for a, b, g in taken.get((o["chunk"], o["local"]), []):
+                    if min(b, o["end"]) - max(a, o["start"]) > 1e-6 and g != o["speaker"]:
+                        reasons.append(f"chunk{o['chunk']}:{o['local']} の同じ範囲が別の提案で{g}にされている")
+        if reasons:
+            skipped.append({"proposal": pid, "from_person": p["from_person"], "to_person": p["to_person"], "confidence": p["confidence"],
+                            "zone_start": p["zone_start"], "zone_end": p["zone_end"], "reasons": reasons})
+            continue
+        new = []
+        for o in ovs:
+            if not any(abs(x["start"] - o["start"]) < 1e-6 and abs(x["end"] - o["end"]) < 1e-6 and x["chunk"] == o["chunk"] and x["local"] == o["local"] and x["speaker"] == o["speaker"] for x in overrides):
+                overrides.append(o)
+                taken.setdefault((o["chunk"], o["local"]), []).append((o["start"], o["end"], o["speaker"]))
+                new.append(o)
+        applied.append({"proposal": pid, "confidence": p["confidence"], "from_person": p["from_person"], "to_person": p["to_person"],
+                        "zone_start": p["zone_start"], "zone_end": p["zone_end"], "units": p["units"],
+                        "prev_block": _block_brief(prev), "next_block": _block_brief(nxt),
+                        "prev_anchors": prev["anchor_list"], "next_anchors": nxt["anchor_list"],
+                        "shared_anchors": [a for a in prev["anchor_list"] + nxt["anchor_list"] if a["shared_with"]],
+                        "simultaneous_constraint": "違反なし", "overrides": new,
+                        "changed_ranges": len(new), "noop": not new, "why": p["why"]})
+    # 提案に至らなかったmixed_suspectedもreviewに残す
+    mixed = [{"chunk": e["chunk"], "local": e["local"], "state": e["state"], "warnings": e["warnings"][:2]}
+             for e in rep["locals"] if e["mixed_suspected"] and not e["proposed_splits"]]
+    return {"person_globals": pg, "person_global_detail": pg_detail, "applied": applied, "skipped": skipped, "overrides": overrides,
+            "unresolved_zones": zones, "mixed_suspected_not_applied": mixed}
+
+
+def annotate_original_speakers(turns: list[dict], original_diar: list[dict], names: dict[str, str] | None = None) -> int:
+    """各turnに、変更前（元のdiarization）での話者を original_speaker_id に残し、変わったものに local_split_changed を付ける。変更したturn数を返す。"""
+    from diarization import overlap_by_speaker
+    diar = sorted(original_diar, key=lambda d: d["start"])
+    n = 0
+    for t in turns:
+        ov = overlap_by_speaker(diar, t["start"], max(t["end"], t["start"] + 0.05))
+        orig = max(ov, key=lambda k: ov[k]) if ov and sum(ov.values()) / max(t["end"] - t["start"], 0.05) >= 0.3 else None
+        t["original_speaker_id"] = orig
+        t["original_speaker_name"] = (names or {}).get(orig) if orig else None
+        t["local_split_changed"] = bool(orig and t.get("speaker_id") and orig != t["speaker_id"])
+        n += t["local_split_changed"]
+    return n
+
+
+def zone_turn_report(plan: dict, turns: list[dict], chunks: list[dict]) -> None:
+    """UNRESOLVED SPLIT ZONE ごとに、そのlocalの発話にあたるturn数と現在のspeaker（変更していない）を数える。"""
+    by = {c["index"]: c["segments"] for c in chunks}
+    for z in plan["unresolved_zones"]:
+        sp = []
+        for m in z["members"]:
+            k, l = int(m[5:].split(":", 1)[0]), m.split(":", 1)[1]
+            sp += [(s["start"], s["end"]) for s in by.get(k, []) if s["speaker"] == l and min(s["end"], z["end"]) > max(s["start"], z["start"])]
+        sp = _merge(sp, 0.0)
+        cnt: dict[str, int] = {}
+        n = 0
+        for t in turns:
+            if t["end"] < z["start"] or t["start"] > z["end"]:
+                continue
+            d = max(t["end"] - t["start"], 0.05)
+            o = sum(max(0.0, min(t["end"], b) - max(t["start"], a)) for a, b in sp)
+            if o / d >= 0.5:
+                n += 1
+                nm = t.get("speaker_name") or t.get("speaker_id") or "不明"
+                cnt[nm] = cnt.get(nm, 0) + 1
+        z["turns"], z["current_speakers"] = n, cnt
+
+
+def write_apply_reports(plan: dict, turns: list[dict], out_dir, n_changed: int) -> tuple[Path, Path]:
+    """local_split_applied.json（機械可読）と local_split_changes.md（人が読む変更記録）。通常結果と混ぜない運用を推奨する。"""
+    import json
+    out_dir = Path(out_dir)
+    jp, mp = out_dir / "local_split_applied.json", out_dir / "local_split_changes.md"
+    changed = [{"id": t.get("id"), "start": t["start"], "end": t["end"], "original_speaker_id": t.get("original_speaker_id"),
+                "original_speaker_name": t.get("original_speaker_name"), "speaker_id": t.get("speaker_id"), "speaker_name": t.get("speaker_name"),
+                "text": (t.get("raw_text") or "")[:60]} for t in turns if t.get("local_split_changed")]
+    data = {**plan, "changed_turns": changed, "summary": {
+        "applied_high": sum(1 for a in plan["applied"] if a["confidence"] == "HIGH" and not a["noop"]),
+        "applied_medium": sum(1 for a in plan["applied"] if a["confidence"] == "MEDIUM" and not a["noop"]),
+        "applied_noop": sum(1 for a in plan["applied"] if a["noop"]), "skipped": len(plan["skipped"]),
+        "changed_turns": n_changed, "unresolved_zones": len(plan["unresolved_zones"]),
+        "unresolved_zone_sec": round(sum(z["duration"] for z in plan["unresolved_zones"]), 1),
+        "unresolved_zone_turns": sum(z.get("turns", 0) for z in plan["unresolved_zones"])}}
+    jp.write_text(json.dumps(data, ensure_ascii=False, indent=1, default=float), encoding="utf-8")
+    sm = data["summary"]
+    L = ["# local_split_changes.md — `--apply-local-split` による話者の変更記録（検証機能）", "",
+         "**通常結果とは別の出力ディレクトリで運用してください（標準の出力に混ぜない）。** 既定OFFのopt-in機能です。",
+         "適用したのは、HIGH proposal、および両側blockが十分な根拠を持つMEDIUM proposalだけです。**境界未確定ゾーンは現在の割り当てを維持**（UNKNOWN化していません）。", "",
+         "| 項目 | 値 |", "|---|---|", f"| HIGH適用（変更あり） | {sm['applied_high']} |", f"| MEDIUM適用（変更あり） | {sm['applied_medium']} |",
+         f"| 適用対象だが変更なし（すでに同じ話者） | {sm['applied_noop']} |", f"| 適用しなかったproposal | {sm['skipped']} |",
+         f"| 変更したturn数 | {sm['changed_turns']} |", f"| UNRESOLVED SPLIT ZONE | {sm['unresolved_zones']}件・{sm['unresolved_zone_sec']}秒・turn {sm['unresolved_zone_turns']} |", "",
+         f"人物→全体話者: {plan['person_globals']}（anchorの発話量が最大の全体話者。内訳 {plan['person_global_detail']}）", ""]
+
+    def tc(sec): return f"{int(sec // 3600):02d}:{int(sec % 3600 // 60):02d}:{sec % 60:04.1f}"
+    L += ["## 適用した変更", ""]
+    if not plan["applied"]:
+        L.append("なし。")
+    for a in plan["applied"]:
+        L += [f"### {a['proposal']}　{a['from_person']} → {a['to_person']}（**{a['confidence']}**）" + ("　※変更なし（すでに同じ話者）" if a["noop"] else ""), ""]
+        for o in a["overrides"]:
+            L += [f"- タイムコード: {tc(o['start'])}〜{tc(o['end'])}（chunk{o['chunk']}:{o['local']}）", f"  - BEFORE: speaker {o['from_global']}", f"  - AFTER: speaker {o['speaker']}（人物{o['person']}）"]
+        for nm, blk, ans in (("切替前", a["prev_block"], a["prev_anchors"]), ("切替後", a["next_block"], a["next_anchors"])):
+            L.append(f"- 根拠（{nm}・人物{blk['person']}）: anchor {blk['anchors']}本・合計{blk['total_sec']}秒・HIGH {blk['high']} / MEDIUM {blk['medium']}　block {tc(blk['start'])}〜{tc(blk['end'])}")
+            L.append("  - margin: " + ", ".join(f"{x['margin']}({x['confidence']})" for x in ans))
+        if a["shared_anchors"]:
+            L.append("- shared evidence（隣接chunkで同じ音声。1つの証拠として数えた）: " + ", ".join(f"{tc(x['start'])}〜{tc(x['end'])} {'/'.join(x['shared_with'])}" for x in a["shared_anchors"]))
+        L += [f"- simultaneous constraint: {a['simultaneous_constraint']}",
+              f"- **UNRESOLVED SPLIT ZONE**: {tc(a['zone_start'])}〜{tc(a['zone_end'])}（{a['zone_end'] - a['zone_start']:.1f}秒）。現在のspeaker assignmentを維持", ""]
+    L += ["## UNRESOLVED SPLIT ZONE（境界未確定。変更していません。UNKNOWN化もしていません）", "",
+          "| proposal | start | end | 長さ | 発話 | turn数 | 現在のspeaker | 前block | 後block |", "|---|---|---|---|---|---|---|---|---|"]
+    for z in plan["unresolved_zones"]:
+        L.append(f"| {z['proposal']} | {tc(z['start'])} | {tc(z['end'])} | {z['duration']}s | {z['speech_sec']}s | {z.get('turns', '-')} | "
+                 f"{z.get('current_speakers', {})} | {z['prev_speaker']} | {z['next_speaker']} |")
+    L += ["", "※ 将来の別opt-in（例: `--unknown-local-split-boundaries`）で話者不明にする案だけを残しています。**今回は実装していません。**", "",
+          "## 適用しなかったproposal（review）", ""]
+    for s_ in plan["skipped"]:
+        L.append(f"- {s_['from_person']}→{s_['to_person']}（{s_['confidence']}）{tc(s_['zone_start'])}〜{tc(s_['zone_end'])}: " + " / ".join(s_["reasons"]))
+    if not plan["skipped"]:
+        L.append("なし。")
+    L += ["", "## mixed_suspected（提案に届かず、自動変更していません）", ""]
+    for m in plan["mixed_suspected_not_applied"]:
+        L.append(f"- chunk{m['chunk']}:{m['local']}（{m['state']}）: " + "; ".join(m["warnings"]))
+    if not plan["mixed_suspected_not_applied"]:
+        L.append("なし。")
+    L += ["", "## 変更したturn", "", "| id | 時刻 | BEFORE | AFTER | 冒頭 |", "|---|---|---|---|---|"]
+    for c in changed:
+        L.append(f"| {c['id']} | {tc(c['start'])} | {c['original_speaker_name'] or c['original_speaker_id']} | {c['speaker_name'] or c['speaker_id']} | {c['text'][:30]} |")
     mp.write_text("\n".join(L) + "\n", encoding="utf-8")
     return jp, mp

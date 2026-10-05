@@ -68,6 +68,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--analyze-local-split", action="store_true",
                    help="（分析のみ・既定OFF）1つのlocal speaker内に複数人物が混在していないか、単独区間の声紋で分析し、"
                         "local_split_report.json / local_split_review.md を出す。transcript・話者ラベルは変更しない。--speaker-constraints が必要")
+    p.add_argument("--apply-local-split", action="store_true",
+                   help="（検証機能・既定OFF）--analyze-local-split の結果のうち、HIGH proposal と、両側blockが十分な根拠を持つMEDIUM proposalだけを、"
+                        "sub-segment（localの時間範囲）単位で実際のspeaker assignmentへ反映する。境界未確定ゾーンは現在の割り当てを維持（UNKNOWN化しない）。"
+                        "変更記録は local_split_applied.json / local_split_changes.md。通常結果と別の --output-dir で使うこと")
     p.add_argument("--local-split-refs", type=Path, default=None, metavar="YAML",
                    help="--analyze-local-split の参照話者（--speaker-constraints と同じ書式）。省略時は --speaker-constraints を使う"
                         "（--speaker-constraints を指定すると候補3の再統合も行われるので、分析だけなら --local-split-refs を使う）")
@@ -207,7 +211,9 @@ def main(argv=None) -> int:
         log("[話者分離] キャッシュを使用")
         diar_segments = diar["segments"]
         notes.extend((diar.get("chunk_merge") or {}).get("notes") or [])
-        if a.speaker_constraints:
+        if a.speaker_constraints and a.apply_local_split:
+            notes.append("--apply-local-split のため、--speaker-constraints による候補3の再統合（localを一括で付け替える）は行っていません。sub-segment単位の判定を優先しています。")
+        elif a.speaker_constraints:
             import diarization_chunks as dc
             cons = dc.load_constraints(a.speaker_constraints)
             re = dc.remerge_saved(cdir / "diarization_chunks", cons) if cons else None
@@ -248,6 +254,55 @@ def main(argv=None) -> int:
             if os.environ.get("DEBUG"):
                 traceback.print_exc()
 
+    # ---------------- local split 分析・適用（--analyze-local-split / --apply-local-split。どちらも既定OFF）
+    split_cache: dict = {}
+    split_plan = None
+    orig_diar_segments = diar_segments
+
+    def get_split_report():
+        nonlocal wav
+        if "rep" not in split_cache:
+            import diarization_chunks as dc
+            import local_split as ls
+            src = a.local_split_refs or a.speaker_constraints
+            cons = dc.load_constraints(src) if src else None
+            if not cons or len(cons["persons"]) < 2:
+                raise ValueError("参照話者が2人以上必要です（--local-split-refs または --speaker-constraints に人間確認済みの人物を2人以上書いてください）")
+            wv = wav or wx.preprocess(a.audio, a.temp_dir, cfg.normalize)
+            wav = wv
+            t0 = time.time()
+            only = [x.strip() for x in a.local_split_persons.split(",")] if a.local_split_persons else None
+            split_cache["cons"] = cons
+            split_cache["rep"] = ls.run_local_split(cdir / "diarization_chunks", wv, cons, only_persons=only)
+            split_cache["sec"] = time.time() - t0
+        return split_cache["rep"]
+
+    if a.apply_local_split and diar_segments:
+        try:
+            import diarization_chunks as dc
+            import local_split as ls
+            rep_ = get_split_report()
+            loaded = dc.load_saved_chunks(cdir / "diarization_chunks")
+            if loaded is None:
+                raise FileNotFoundError("保存済みのチャンクが揃っていません")
+            chunks_, dur_ = loaded
+            base_segs, base_rep = dc.merge_chunks(chunks_, dur_)
+            same = [(round(x["start"], 2), round(x["end"], 2), x["speaker"]) for x in base_segs] == \
+                   [(round(x["start"], 2), round(x["end"], 2), x["speaker"]) for x in diar_segments]
+            if not same:
+                notes.append("保存済みdiarization結果と、チャンクからの標準の統合結果が一致しません（--apply-local-split は標準の統合結果を基準にします）。")
+            split_plan = ls.plan_apply(rep_, split_cache["cons"]["persons"], base_rep["mappings"], chunks_)
+            split_plan["segments"], _ = dc.merge_chunks(chunks_, dur_, overrides=split_plan["overrides"])
+            split_plan["chunks"] = chunks_
+            diar_segments = split_plan["segments"]
+            log(f"[local_split] 適用（検証機能）: 提案 {len(rep_['proposed_splits'])}件のうち適用 {len(split_plan['applied'])}件 / "
+                f"見送り {len(split_plan['skipped'])}件、sub-segment範囲 {len(split_plan['overrides'])}件を反映")
+        except Exception as e:  # noqa: BLE001 - 失敗したら標準の結果のまま続ける
+            split_plan = None
+            diar_segments = orig_diar_segments
+            notes.append(f"--apply-local-split を適用できませんでした（標準の結果のままです）: {type(e).__name__}: {str(e)[:200]}")
+            log(f"[警告] {notes[-1]}")
+
     # ---------------- STEP6-8 統合・逐語録・話者名
     turns = tb.build_turns(aligned, diar_segments, whisper.get("segments"),
                            mark_unclear_logprob=a.mark_unclear_logprob)
@@ -258,6 +313,16 @@ def main(argv=None) -> int:
                      "pip install janome で語単位の割り当てになります。")
     mapping = diarization.load_speakers(a.speakers)
     labels = tb.apply_speaker_names(turns, mapping)
+    if split_plan:
+        import local_split as ls
+        n_changed = ls.annotate_original_speakers(turns, orig_diar_segments, labels)
+        ls.zone_turn_report(split_plan, turns, split_plan["chunks"])
+        jp_, mp_ = ls.write_apply_reports({k: v for k, v in split_plan.items() if k not in ("segments", "chunks")}, turns, out_dir, n_changed)
+        notes.append(f"--apply-local-split（検証機能）: {n_changed}発言の話者を変更しました（HIGH/MEDIUMのうち根拠が十分なproposalのsub-segmentのみ。"
+                     f"変更記録は {mp_.name} / {jp_.name}）。transcript.json の original_speaker_id で変更前を確認できます。")
+        for z in split_plan["unresolved_zones"]:
+            notes.append(f"UNRESOLVED SPLIT ZONE: {z['start']:.1f}〜{z['end']:.1f}秒（{z['duration']}秒・turn {z.get('turns', 0)}・現在のspeaker {z.get('current_speakers', {})}）"
+                         f"前block {z['prev_speaker']} / 後block {z['next_speaker']}。現在の割り当てを維持（変更なし）。")
     title = stem
     if diar_segments:
         shown = set()
@@ -303,25 +368,16 @@ def main(argv=None) -> int:
     cands = dictmod.find_candidates(turns, terms) if terms else []
 
     def run_local_split_analysis():
-        import diarization_chunks as dc
         import local_split as ls
-        src = a.local_split_refs or a.speaker_constraints
-        cons = dc.load_constraints(src) if src else None
-        if not cons or len(cons["persons"]) < 2:
-            log("[local_split] 参照話者が2人以上必要です（--local-split-refs または --speaker-constraints に人間確認済みの人物を2人以上書いてください）。分析をスキップします")
-            return
-        wv = wav or wx.preprocess(a.audio, a.temp_dir, cfg.normalize)
-        t0 = time.time()
-        only = [x.strip() for x in a.local_split_persons.split(",")] if a.local_split_persons else None
-        rep = ls.run_local_split(cdir / "diarization_chunks", wv, cons, only_persons=only)
+        rep = get_split_report()
         jp, mp = ls.write_reports(rep, out_dir)
         sm = rep["summary"]
-        log(f"[local_split] 分析のみ（transcript・話者ラベルは変更していません）: local {sm['locals']} / anchor {sm['anchors']} / "
+        log(f"[local_split] 分析のみ（話者ラベルは分析では変更していません）: local {sm['locals']} / anchor {sm['anchors']} / "
             f"mixed_suspected {sm['mixed_suspected_locals']} / HIGH提案 {sm['high_split_proposals']} / MEDIUM提案 {sm['medium_split_proposals']} "
-            f"（{time.time() - t0:.0f}秒）→ {jp.name} / {mp.name}")
+            f"（{split_cache.get('sec', 0):.0f}秒）→ {jp.name} / {mp.name}")
 
     def finish() -> int:
-        if a.analyze_local_split:
+        if a.analyze_local_split or a.apply_local_split:
             try:
                 run_local_split_analysis()
             except Exception as e:  # noqa: BLE001 - 分析の失敗で通常の出力を止めない

@@ -727,7 +727,7 @@ def render_magazine(turns: list[dict], title: str, timestamps: bool = False, not
 def write_json(path: Path, turns: list[dict], include_words: bool = True) -> None:
     keys = ["id", "speaker_id", "speaker_name", "speaker_uncertain", "speaker_guess", "start", "end",
             "raw_text", "clean_text", "edited_text", "clean_dropped", "edited_dropped",
-            "edit_source", "cut_start", "cut_end", "short_kept", "unknown_joined", "unknown_candidate", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
+            "edit_source", "cut_start", "cut_end", "short_kept", "unknown_joined", "unknown_candidate", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text", "original_speaker_id", "original_speaker_name", "local_split_changed"]
     rows = []
     for t in turns:
         row = {k: t.get(k) for k in keys if k in t or k in ("edited_text",)}

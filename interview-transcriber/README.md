@@ -346,3 +346,26 @@ pyannoteのlocal speaker（チャンク内のSPEAKER_xx）は1人とは限りま
 - 隣接チャンクで同じ音声（60%以上重なるanchor）は1つの証拠として数え、対応するlocalの組でまとめて判定します。
 - 根拠が足りないlocalは `insufficient_evidence`、片側の根拠が不足なら `mixed_suspected: true`。`--local-split-persons B,C` で参照話者を絞った感度分析ができます（他の人物の声は絞った人物のどちらかに寄ります）。
 - 55分の音声で約1分（CPU）。ASR・alignment・diarizationは実行しません。
+
+## local split の適用（`--apply-local-split`・検証機能・既定OFF・opt-in）
+
+`--analyze-local-split` の結果のうち、**HIGH proposal** と、**両側blockが十分な根拠を持つMEDIUM proposal** だけを、実際のspeaker assignmentへ反映します。
+**通常機能への昇格はしていません**（別の実対談音声でもHIGH/MEDIUMを数件人間確認し、誤配分が十分少ないと確認できるまで既定OFF）。指定しない通常実行の出力は変わりません。
+
+**通常結果と混ぜないでください（別の `--output-dir` を使う）。**
+```
+# 標準
+python transcribe_interview.py interview.m4a --output-dir output/default
+
+# local split適用（検証）
+python transcribe_interview.py interview.m4a \
+    --analyze-local-split --apply-local-split \
+    --local-split-refs config/refs.yaml \
+    --output-dir output/local_split_applied
+```
+- 適用するもの（一般ルール。人間確認の結果はコードに入っていません）: HIGH、または MEDIUM のうち **切替の両側ともanchor2本以上・合計4秒以上**、block内の人物候補が一貫、unstableでない、同時発話制約（変更先の全体話者が同じchunkの別localとして同時に話さない）に違反しない、両側の人物の全体話者が既知、のすべてを満たすもの。
+- 自動変更しないもの（reviewに残す）: mixed_suspectedのみ／片側のanchor不足／unstable／LOW／UNKNOWN／同時発話の矛盾／identity不足／overlap主体の区間。
+- **sub-segment単位**: 確定した前blockと後blockの時間範囲の、そのlocalの発話だけを人物の全体話者へ付け替えます（local全体の一括付け替えはしない）。`--apply-local-split` のときは `--speaker-constraints`（候補3のlocal一括の付け替え）は行いません。
+- **境界未確定ゾーン**は現在のspeaker assignmentを維持します（話者不明にはしません）。`UNRESOLVED SPLIT ZONE` として、start/end/長さ/turn数/現在のspeaker/前後blockの人物を `local_split_changes.md` と `review_required.md` の注意欄に出します。ゾーンを話者不明にする機能は未実装です（将来、`--unknown-local-split-boundaries` のような別opt-inにする案）。
+- 変更履歴: `local_split_applied.json`（機械可読）と `local_split_changes.md`（タイムコード・BEFORE/AFTER・proposal・根拠・ゾーン）。`transcript.json` の各turnに `original_speaker_id` / `original_speaker_name` / `local_split_changed` が付きます。
+- 前提: 保存済みのチャンク（diarization_chunks/）が必要。重い処理（ASR・alignment・diarization）は再実行しません。

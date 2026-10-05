@@ -345,8 +345,34 @@ def _apply_constraints(chunks: list[dict], maps: list[dict], node_info: dict, co
     return log_
 
 
-def merge_chunks(chunks: list[dict], duration: float, trace: list | None = None, constraints: dict | None = None
-                 ) -> tuple[list[dict], dict]:
+def _assemble(chunks: list[dict], maps: list[dict], overrides: list[dict] | None) -> list[list[dict]]:
+    """チャンクごとの segments を全体話者名に直す。overrides（local内の時間範囲 [start,end] だけ別の全体話者にする）があれば、
+    その範囲でsegmentを分割して付け替える（local全体は動かさない。--apply-local-split 用）。"""
+    ov: dict[tuple, list[dict]] = {}
+    for o in overrides or []:
+        ov.setdefault((o["chunk"], o["local"]), []).append(o)
+    out = []
+    for ch, m in zip(chunks, maps):
+        rows = []
+        for x in ch["segments"]:
+            rng = sorted(ov.get((ch["index"], x["speaker"]), []), key=lambda o: o["start"])
+            pos = x["start"]
+            for o in rng:
+                a, b = max(o["start"], x["start"]), min(o["end"], x["end"])
+                if b - a <= 1e-6 or a < pos - 1e-9:
+                    continue
+                if a - pos > 1e-6:
+                    rows.append({**x, "start": pos, "end": a, "speaker": m[x["speaker"]]})
+                rows.append({**x, "start": a, "end": b, "speaker": o["speaker"]})
+                pos = b
+            if x["end"] - pos > 1e-6:
+                rows.append({**x, "start": pos, "end": x["end"], "speaker": m[x["speaker"]]})
+        out.append(rows)
+    return out
+
+
+def merge_chunks(chunks: list[dict], duration: float, trace: list | None = None, constraints: dict | None = None,
+                 overrides: list[dict] | None = None) -> tuple[list[dict], dict]:
     """チャンクごとの結果（絶対時刻・チャンク内のspeaker ID）を、全体で一貫したspeaker IDの1つの結果に統合する。
     constraints（人間確認済みの対応。load_constraints 参照）があるときは、逐次の対応付けの後で矛盾を検査し、
     **ラベルの単純な置換ではなく**、誤った対応の連鎖を付け替えて再統合する（_apply_constraints）。"""
@@ -451,7 +477,9 @@ def merge_chunks(chunks: list[dict], duration: float, trace: list | None = None,
     repairs: list[dict] = []
     if constraints:
         repairs = _apply_constraints(chunks, maps, node_info, constraints)
-        assembled = [[{**x, "speaker": m[x["speaker"]]} for x in ch["segments"]] for ch, m in zip(chunks, maps)]
+    if constraints or overrides:
+        assembled = _assemble(chunks, maps, overrides)
+    if constraints:
         remaining = {g for m in maps for g in m.values()}
         glob = {g: v for g, v in glob.items() if g in remaining}
         unresolved = [u for u in unresolved if u["treated_as"] in remaining]       # 統合で解消した「要確認」は残さない
@@ -485,12 +513,11 @@ def merge_chunks(chunks: list[dict], duration: float, trace: list | None = None,
             notes.append(f"人間確認済み制約を満たせませんでした（{r['action']}）: {r['reason']}")
     return joined, {"speakers": sorted(glob), "matches": matches, "unresolved": unresolved, "notes": notes,
                     "cut_points": [round(c, 2) for c in cut[1:-1]], "duration": round(duration, 2),
-                    "ambiguous": amb, "repairs": repairs, "mappings": [{sp: g for sp, g in m.items()} for m in maps]}
+                    "ambiguous": amb, "repairs": repairs, "overrides": overrides or [], "mappings": [{sp: g for sp, g in m.items()} for m in maps]}
 
 
-def remerge_saved(chunk_dir: Path, constraints: dict | None = None) -> tuple[list[dict], dict] | None:
-    """保存済みの全チャンク（chunk_NNN.json）から、音声・モデルなしで統合だけをやり直す（人間確認済み制約を使うとき）。
-    state.json が無い・チャンクが揃っていないときは None。"""
+def load_saved_chunks(chunk_dir: Path) -> tuple[list[dict], float] | None:
+    """保存済みの全チャンクと音声長。揃っていなければ None。"""
     chunk_dir = Path(chunk_dir)
     state = _load(chunk_dir / "state.json")
     if not state:
@@ -498,6 +525,16 @@ def remerge_saved(chunk_dir: Path, constraints: dict | None = None) -> tuple[lis
     chunks = [_load(_chunk_file(chunk_dir, c["index"])) for c in state.get("chunks", [])]
     if not chunks or any(c is None or "segments" not in c for c in chunks):
         return None
-    segments, report = merge_chunks(chunks, float(state["duration"]), constraints=constraints)
+    return chunks, float(state["duration"])
+
+
+def remerge_saved(chunk_dir: Path, constraints: dict | None = None) -> tuple[list[dict], dict] | None:
+    """保存済みの全チャンク（chunk_NNN.json）から、音声・モデルなしで統合だけをやり直す（人間確認済み制約を使うとき）。
+    state.json が無い・チャンクが揃っていないときは None。"""
+    loaded = load_saved_chunks(chunk_dir)
+    if loaded is None:
+        return None
+    chunks, duration = loaded
+    segments, report = merge_chunks(chunks, duration, constraints=constraints)
     report["total_chunks"] = len(chunks)
     return segments, report
