@@ -32,6 +32,11 @@ EMB_RELATIVE_OK = 0.60           # 〃 他の全体話者との差が大きい�
 EMB_RELATIVE_MARGIN = 0.30
 EMB_CLEARLY_DIFFERENT = 0.50     # 全ての既存話者との類似度がこれ未満なら「新しい人物」と確信してよい
 
+# ---- 人間確認済み制約・曖昧リンク（候補3）
+MIX_MIN_SEC = 3.0                # localが、前チャンクの2人以上の全体話者それぞれと、これ以上同時に話している
+MIX_RATIO = 0.25                 # 〃 かつ重なり区間の発話に占める割合がこれ以上 → 1人と断定できない（二人分を含む可能性）
+EVICT_MIN_SIM = 0.5              # 制約を満たすために別の全体話者へ付け替えるとき、埋め込み類似度がこれ以上
+
 Diarizer = Callable[[np.ndarray, float, float, "int | None"], "tuple[list[dict], dict | None]"]
 
 
@@ -174,13 +179,178 @@ def _fmt(sec: float) -> str:
     return f"{sec // 3600:02d}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
 
 
-def merge_chunks(chunks: list[dict], duration: float) -> tuple[list[dict], dict]:
-    """チャンクごとの結果（絶対時刻・チャンク内のspeaker ID）を、全体で一貫したspeaker IDの1つの結果に統合する。"""
+# ------------------------------------------------------------------ 曖昧リンクと人間確認済み制約（候補3）
+def load_constraints(path) -> dict | None:
+    """人間確認済みの話者対応。{"persons": {名前: [{"chunk": 9, "local": "SPEAKER_03"}, ...]}}。
+    同じ人物の (chunk, local) は同一人物（must-link）、異なる人物は別人（cannot-link）として扱う。無ければ None。"""
+    if not path or not Path(path).exists():
+        return None
+    import yaml
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    persons = {}
+    for name, items in (data.get("persons") or {}).items():
+        persons[str(name)] = [(int(a["chunk"]), str(a["local"])) for a in (items or [])]
+    return {"persons": persons} if persons else None
+
+
+def _mixed(rows: dict) -> list[str]:
+    """前チャンクの2人以上の全体話者と、それぞれ有意に同時に話している local（＝二人分を含む可能性）の全体話者名。"""
+    ov = sum(r["inter"] for r in rows.values())
+    strong = [g for g, r in rows.items() if r["inter"] >= MIX_MIN_SEC and r["time"] >= MIX_RATIO]
+    return strong if len(strong) >= 2 and ov > 0 else []
+
+
+def _ambiguous_nodes(node_info: dict, maps: list[dict]) -> list[dict]:
+    out = []
+    for (k, sp), n in sorted(node_info.items()):
+        m = _mixed(n["rows"])
+        if m:
+            out.append({"chunk": k, "local": sp, "global": maps[k][sp], "overlaps_with": m,
+                        "time": {g: n["rows"][g]["time"] for g in m}, "sim": {g: n["rows"][g]["sim"] for g in m}})
+    return out
+
+
+def _exclusive_prev(node: tuple, maps: list[dict], node_info: dict) -> tuple | None:
+    """node が前チャンクの同じ全体話者の local と『他と混ざらない時刻一致』で結ばれていれば、その (chunk, local)。"""
+    k, sp = node
+    if k == 0:
+        return None
+    n = node_info[node]
+    g = maps[k][sp]
+    r = n["rows"].get(g)
+    if not r or r["inter"] < MIN_OVERLAP_EVIDENCE_SEC or r["time"] < TIME_RATIO_OK or _mixed(n["rows"]):
+        return None
+    return next(((k - 1, l) for l, gg in maps[k - 1].items() if gg == g), None)
+
+
+def _chain(node: tuple, maps: list[dict], node_info: dict) -> list[tuple]:
+    """node と、混ざらない時刻一致でつながっている前後の local（同じ全体話者のまま）。"""
+    seen, todo = {node}, [node]
+    prev_of = {nd: _exclusive_prev(nd, maps, node_info) for nd in node_info}
+    while todo:
+        cur = todo.pop()
+        nbrs = [prev_of[cur]] if prev_of.get(cur) else []
+        nbrs += [nd for nd, pv in prev_of.items() if pv == cur]
+        for nb in nbrs:
+            if nb not in seen and maps[nb[0]][nb[1]] == maps[cur[0]][cur[1]]:
+                seen.add(nb)
+                todo.append(nb)
+    return sorted(seen)
+
+
+def _node_sim(node_info: dict, node: tuple, cent: np.ndarray | None) -> float | None:
+    e = node_info[node]["emb"]
+    return None if e is None or cent is None else _cos(e, cent)
+
+
+def _centroids(maps: list[dict], node_info: dict, exclude: set | None = None) -> dict[str, np.ndarray]:
+    acc: dict[str, list] = {}
+    for k, m in enumerate(maps):
+        for sp, g in m.items():
+            n = node_info.get((k, sp))
+            if n and n["emb"] is not None and not (exclude and (k, sp) in exclude):
+                a = acc.setdefault(g, [np.zeros_like(n["emb"], dtype=float), 0.0])
+                a[0] = a[0] + n["emb"] * n["total"]
+                a[1] += n["total"]
+    return {g: v[0] / max(v[1], 1e-9) for g, v in acc.items()}
+
+
+def _apply_constraints(chunks: list[dict], maps: list[dict], node_info: dict, constraints: dict) -> list[dict]:
+    """人間確認済み制約（同一人物のanchorは同じ全体話者、別人のanchorは別の全体話者）に合わない対応を直す。
+    - 単純な置換はしない。同じ人物の別の全体話者（例: F）を統合先（例: B）へまとめるとき、同じチャンクに併存する
+      統合先側のlocalがあれば（＝同時に話す別人なので同一人物にできない）、そのlocalと『混ざらない時刻一致でつながる連鎖』を
+      別の全体話者へ付け替える（その全体話者がその連鎖の全チャンクで未使用で、埋め込み類似度が十分高いときだけ）。
+    - 条件を満たせないときは何も変えず、要確認として返す。返り値は変更・保留の記録。"""
+    persons: dict[str, list[tuple]] = constraints["persons"]
+    log_: list[dict] = []
+    owner = {nd: p for p, nds in persons.items() for nd in nds}          # anchor -> 人物
+    for p, nds in persons.items():
+        nds = [nd for nd in nds if nd in node_info]
+        by_g: dict[str, float] = {}
+        for nd in nds:
+            by_g[maps[nd[0]][nd[1]]] = by_g.get(maps[nd[0]][nd[1]], 0.0) + node_info[nd]["total"]
+        if len(by_g) < 2:
+            continue
+        spoken = {g: sum(n["total"] for (k, sp), n in node_info.items() if maps[k][sp] == g) for g in by_g}
+        target = max(by_g, key=lambda g: spoken[g])                      # 統合先: 発話量が最も多い全体話者
+        for g in sorted(by_g, key=lambda x: -spoken[x]):
+            if g == target:
+                continue
+            src_nodes = [(k, sp) for k, m in enumerate(maps) for sp, gg in m.items() if gg == g]
+            tgt_chunks = {k: [sp for sp, gg in maps[k].items() if gg == target] for k in range(len(maps))}
+            plan, blocked = [], None
+            conflicts = [(k, sp, tsp) for (k, sp) in src_nodes for tsp in tgt_chunks[k]]
+            moved_chains: set[tuple] = set()
+            for (k, sp, tsp) in conflicts:
+                if (k, tsp) in moved_chains:
+                    continue
+                if owner.get((k, tsp)) == p and owner.get((k, sp)) == p:  # 併存する両方が同じ人物のanchor → 矛盾（統合しない）
+                    blocked = f"chunk{k}で {sp}（{g}）と {tsp}（{target}）が併存し、どちらも人物{p}と確認済み"
+                    break
+                if owner.get((k, tsp)) == p:
+                    blocked = f"chunk{k}で {tsp}（{target}）が人物{p}のanchorのため、併存する {sp}（{g}）の側を付け替える必要があるが未対応"
+                    break
+                chain = _chain((k, tsp), maps, node_info)
+                if any(owner.get(nd) == p for nd in chain):               # 連鎖の中にanchorがある（付け替えられない）
+                    blocked = f"chunk{k}の {tsp}（{target}）の連鎖に人物{p}のanchorがあり付け替えられない"
+                    break
+                cents = _centroids(maps, node_info, exclude=set(chain))
+                chain_chunks = {c for c, _ in chain}
+                best = None
+                for cand in sorted(cents):
+                    if cand in (target, g):
+                        continue
+                    if any(cand in maps[c].values() for c in chain_chunks):           # 連鎖のチャンクに同時に存在する → 別人なので不可
+                        continue
+                    if any(owner.get((c, l)) == p for c, m in enumerate(maps) for l, gg in m.items() if gg == cand):
+                        continue                                                           # 〃 候補が同じ人物のanchorを持っている
+                    sims = [_node_sim(node_info, nd, cents[cand]) for nd in chain]
+                    if any(x is None or x < EVICT_MIN_SIM for x in sims):
+                        continue
+                    sc = sum(x * node_info[nd]["total"] for x, nd in zip(sims, chain)) / sum(node_info[nd]["total"] for nd in chain)
+                    if best is None or sc > best[0]:
+                        best = (sc, cand, [round(x, 3) for x in sims])
+                if best is None:
+                    blocked = f"chunk{k}の {tsp}（{target}）を付け替える先の全体話者が見つからない（併存・埋め込みの条件を満たさない）"
+                    break
+                plan.append({"chain": chain, "to": best[1], "score": round(best[0], 3), "sims": best[2], "from": target,
+                             "reason": f"{p}を統合するため、chunk{k}で併存する {tsp} の連鎖を付け替え"})
+                moved_chains.update(chain)
+            if blocked:
+                log_.append({"person": p, "action": "保留", "merge": f"{g}→{target}", "reason": blocked})
+                continue
+            for pl in plan:
+                for (c, l) in pl["chain"]:
+                    maps[c][l] = pl["to"]
+                log_.append({"person": p, "action": "付け替え", "nodes": [f"chunk{c}:{l}" for c, l in pl["chain"]],
+                             "from": pl["from"], "to": pl["to"], "score": pl["score"], "sims": pl["sims"], "reason": pl["reason"]})
+            for (c, l) in src_nodes:
+                maps[c][l] = target
+            log_.append({"person": p, "action": "統合", "merge": f"{g}→{target}",
+                         "nodes": [f"chunk{c}:{l}" for c, l in src_nodes], "reason": f"人物{p}の同一人物制約"})
+    # 別人制約の違反検出（修復はせず報告）
+    names = list(persons)
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            ga = {maps[k][sp] for k, sp in persons[a] if (k, sp) in node_info}
+            gb = {maps[k][sp] for k, sp in persons[b] if (k, sp) in node_info}
+            if ga & gb:
+                log_.append({"person": f"{a}≠{b}", "action": "違反", "reason": f"別人と確認済みの{a}と{b}が同じ全体話者 {sorted(ga & gb)} になっている"})
+    return log_
+
+
+def merge_chunks(chunks: list[dict], duration: float, trace: list | None = None, constraints: dict | None = None
+                 ) -> tuple[list[dict], dict]:
+    """チャンクごとの結果（絶対時刻・チャンク内のspeaker ID）を、全体で一貫したspeaker IDの1つの結果に統合する。
+    constraints（人間確認済みの対応。load_constraints 参照）があるときは、逐次の対応付けの後で矛盾を検査し、
+    **ラベルの単純な置換ではなく**、誤った対応の連鎖を付け替えて再統合する（_apply_constraints）。"""
     chunks = sorted(chunks, key=lambda c: c["index"])
     cut = [0.0] + [(chunks[k]["start"] + chunks[k - 1]["end"]) / 2 for k in range(1, len(chunks))] + [duration]
     glob: dict[str, dict] = {}         # 全体speaker -> {"sum": 埋め込みの重み付き和|None, "w": 重み}
     matches, unresolved = [], []
     assembled: list[list[dict]] = []   # チャンクごとの、全体speaker名に直した（切り出す前の）segments
+    maps: list[dict] = []              # チャンクごとの local -> 全体speaker
+    node_info: dict[tuple, dict] = {}
 
     def new_global(emb, dur) -> str:
         name = f"SPEAKER_{len(glob):02d}"
@@ -262,7 +432,23 @@ def merge_chunks(chunks: list[dict], duration: float) -> tuple[list[dict], dict]
                     glob[g]["w"] += total[sp]
                 elif e is not None and glob[g]["sum"] is None:
                     glob[g]["sum"], glob[g]["w"] = e * total[sp], total[sp]
+        if trace is not None:     # 調査用: 各localが各globalにどれだけ近かったか（挙動は変えない）
+            trace.append({"chunk": k, "mapping": dict(mapping), "total": dict(total), "locs": locs,
+                          "info": {sp: {"ov": v["ov"], "rows": v["rows"]} for sp, v in info.items()} if k else {},
+                          "glob_sizes": {g: round(v["w"], 1) for g, v in glob.items()}})
         assembled.append([{**s, "speaker": mapping[s["speaker"]]} for s in segs])
+        maps.append(dict(mapping))
+        for sp in locs:
+            node_info[(k, sp)] = {"total": total[sp], "emb": embs.get(sp), "rows": info[sp]["rows"] if k else {}, "ov": info[sp]["ov"] if k else 0.0}
+
+    amb = _ambiguous_nodes(node_info, maps)
+    repairs: list[dict] = []
+    if constraints:
+        repairs = _apply_constraints(chunks, maps, node_info, constraints)
+        assembled = [[{**x, "speaker": m[x["speaker"]]} for x in ch["segments"]] for ch, m in zip(chunks, maps)]
+        remaining = {g for m in maps for g in m.values()}
+        glob = {g: v for g, v in glob.items() if g in remaining}
+        unresolved = [u for u in unresolved if u["treated_as"] in remaining]       # 統合で解消した「要確認」は残さない
 
     # ---- 二重出力を避けて切り出し（重なり区間の中点で担当を切り替える）
     out: list[dict] = []
@@ -285,5 +471,27 @@ def merge_chunks(chunks: list[dict], duration: float) -> tuple[list[dict], dict]
         notes.append(f"チャンク間speaker対応 要確認: チャンク{u['chunk'] + 1}（{_fmt(u['start'])}付近〜）の{u['local']}（約{u['speech_sec']}秒）は、"
                      f"既存の話者と同一人物か確信が持てなかったため、別の話者（{u['treated_as']}）として扱っています。"
                      f"近い候補: {cands}（{u['reason']}）。同じ人物なら、speakers.yaml で同じ名前を割り当てると統合できます。")
+    for r in repairs:
+        if r["action"] == "付け替え":
+            notes.append(f"人間確認済み制約（{r['person']}の統合）のため、{', '.join(r['nodes'])} を {r['from']} から {r['to']} へ付け替えました"
+                         f"（埋め込み類似度 {r['sims']}）。この区間のlocal話者は二人分を含む可能性があります。人の耳で要確認。")
+        elif r["action"] in ("保留", "違反"):
+            notes.append(f"人間確認済み制約を満たせませんでした（{r['action']}）: {r['reason']}")
     return joined, {"speakers": sorted(glob), "matches": matches, "unresolved": unresolved, "notes": notes,
-                    "cut_points": [round(c, 2) for c in cut[1:-1]], "duration": round(duration, 2)}
+                    "cut_points": [round(c, 2) for c in cut[1:-1]], "duration": round(duration, 2),
+                    "ambiguous": amb, "repairs": repairs, "mappings": [{sp: g for sp, g in m.items()} for m in maps]}
+
+
+def remerge_saved(chunk_dir: Path, constraints: dict | None = None) -> tuple[list[dict], dict] | None:
+    """保存済みの全チャンク（chunk_NNN.json）から、音声・モデルなしで統合だけをやり直す（人間確認済み制約を使うとき）。
+    state.json が無い・チャンクが揃っていないときは None。"""
+    chunk_dir = Path(chunk_dir)
+    state = _load(chunk_dir / "state.json")
+    if not state:
+        return None
+    chunks = [_load(_chunk_file(chunk_dir, c["index"])) for c in state.get("chunks", [])]
+    if not chunks or any(c is None or "segments" not in c for c in chunks):
+        return None
+    segments, report = merge_chunks(chunks, float(state["duration"]), constraints=constraints)
+    report["total_chunks"] = len(chunks)
+    return segments, report

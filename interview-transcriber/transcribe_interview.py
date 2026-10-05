@@ -62,6 +62,8 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="音声がこの長さ（分）を超えたら、話者分離を再開可能なチャンク方式にする（既定 %(default)s。短い音声は従来どおり一括）")
     p.add_argument("--diarize-chunk-min", type=float, default=5.0, metavar="MIN", help="チャンク方式の1チャンクの長さ（分、既定 %(default)s）")
     p.add_argument("--diarize-chunk-overlap-sec", type=float, default=30.0, metavar="SEC", help="チャンクの重なり（秒、既定 %(default)s）")
+    p.add_argument("--speaker-constraints", type=Path, default=None, metavar="YAML",
+                   help="人間確認済みの話者対応（同一人物・別人）。保存済みチャンクから話者の統合だけをやり直す（config/speaker_constraints.example.yaml）")
     p.add_argument("--no-diarize", action="store_true", help="話者分離を行わない")
     p.add_argument("--no-normalize", action="store_true", help="音量正規化をしない")
     g = p.add_mutually_exclusive_group()  # 初期プロンプトは標準なし。次の2つは同時指定不可（エラー）
@@ -196,6 +198,19 @@ def main(argv=None) -> int:
         log("[話者分離] キャッシュを使用")
         diar_segments = diar["segments"]
         notes.extend((diar.get("chunk_merge") or {}).get("notes") or [])
+        if a.speaker_constraints:
+            import diarization_chunks as dc
+            cons = dc.load_constraints(a.speaker_constraints)
+            re = dc.remerge_saved(cdir / "diarization_chunks", cons) if cons else None
+            if re is None:
+                notes.append("--speaker-constraints が指定されましたが、保存済みのチャンクが揃っていないため、制約は適用していません。")
+            else:
+                diar_segments = re[0]
+                notes = [n for n in notes if not n.startswith("チャンク間speaker対応 要確認")] + re[1].get("notes", [])
+                for r in re[1].get("repairs", []):
+                    notes.append(f"人間確認済み制約による話者統合（{r['action']}）: " + (r.get("reason") or "") +
+                                 (f"　{r['merge']}" if r.get("merge") else "") + (f"　{r['from']}→{r['to']}" if r.get("to") else ""))
+                log(f"[話者分離] 人間確認済み制約で統合をやり直しました（話者 {len(re[1]['speakers'])}人）")
     elif a.no_diarize or a.skip_transcription:
         diar_segments = None
         if a.no_diarize:
