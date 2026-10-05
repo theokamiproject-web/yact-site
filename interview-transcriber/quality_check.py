@@ -222,6 +222,22 @@ def _render_findings(findings, turns, keep: bool) -> list[str]:
     return L
 
 
+def _render_short_turns(turns) -> list[str]:
+    """短い別話者の発話で、前後の話者へ吸収せず残したもの（実在の相槌・応答の可能性が高いが、断定はしない）。"""
+    rows = [t for t in turns if t.get("short_kept")]
+    L = ["## 短い別話者の発話（吸収していません）", "",
+         "0.6秒未満または4文字未満の短い別話者の区間です。**前後の話者へ『短いから』という理由では吸収せず、そのまま残しています**"
+         "（実在の相槌・応答を消さないため）。語の断片であることが明らかな場合だけ前後へ戻します。", f"件数: {len(rows)}", ""]
+    if not rows:
+        return L + ["該当なし。", ""]
+    for t in rows[:200]:
+        L.append(f"- {fmt_ts(t['start'])}　{t.get('speaker_name', '')}：{t['raw_text']}")
+    if len(rows) > 200:
+        L.append(f"- …ほか {len(rows) - 200} 件")
+    L.append("")
+    return L
+
+
 def _render_untranscribed(rows, summary, turns) -> list[str]:
     names = {t["speaker_id"]: t.get("speaker_name", "") for t in turns if t.get("speaker_id")}
     L = ["## ASR未転写候補", "",
@@ -247,6 +263,8 @@ def write_review(path, issues: list[Issue], extra_notes: list[str] | None = None
         lines += ["## 処理に関する注意", ""] + [f"- {n}" for n in extra_notes] + [""]
     if findings is not None and turns is not None:
         lines += _render_findings(findings, turns, keep_hallucinations)
+    if turns is not None and any(t.get("short_kept") for t in turns):
+        lines += _render_short_turns(turns)
     if untranscribed is not None and turns is not None:
         lines += _render_untranscribed(untranscribed[0], untranscribed[1], turns)
     if not issues and not dictionary_candidates and not findings and not (untranscribed and untranscribed[0]):

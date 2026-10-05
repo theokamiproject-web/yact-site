@@ -12,7 +12,7 @@ from pathlib import Path
 
 from diarization import UNKNOWN_SPEAKER, overlap_by_speaker, speaker_labels
 from text_utils import (
-    UNCLEAR_RE, close_paragraph, ends_with_question, fmt_ts, is_backchannel, join_fragments,
+    squash, UNCLEAR_RE, close_paragraph, ends_with_question, fmt_ts, is_backchannel, join_fragments,
     apply_reject_ops, is_unfinished_fragment, rule_clean, tidy_punct,
 )
 
@@ -173,28 +173,142 @@ def _vote_speakers_by_word(tokens: list[dict], diar: list[dict]) -> int:
     return changed
 
 
-def _split_sentence_by_speaker(sent: list[dict], min_run_sec: float, min_chars: int = 4) -> list[list[dict]]:
-    """1文の中の話者交替を扱う。短い区間（診断の揺れの可能性が高い）は長い隣接区間へ吸収し、
-    十分長い区間だけを別発言として分ける。"""
+# 独立した短い応答・相槌として成立しうる語（squash後。「うーん」は「うん」になる）。短いという理由だけでは前後の話者へ吸収しない。
+RESPONSE_WORDS = {
+    "うん", "はい", "そう", "ええ", "いや", "へえ", "なるほど", "ああ", "あ", "え", "えっ", "おお", "ふーん", "ふん", "はあ", "ほう",
+    "うんうん", "はいはい", "そうそう", "いやいや", "ええええ", "そっか", "そうか", "あーそう", "ああそう", "まあ", "ねえ", "ね", "よし",
+    "そうですね", "そうなんだ", "そうなんですね", "そうですか", "なるほどね", "確かに", "たしかに", "うんそう", "はいはいはい",
+}
+NON_WORD_CHARS = set("ーっッぁぃぅぇぉゃゅょゎァィゥェォャュョヮ、。 　")
+SUPPORT_MIN_SEG_SEC = 0.4      # pyannote上で、その話者のセグメントがこれ以上の長さで短い区間を覆っていれば「独立した発話」の支持あり
+SUPPORT_COVER = 0.6
+OVERLAP_RATIO = 0.3
+
+
+def _is_standalone_response(text: str) -> bool:
+    sq = squash(text)
+    if not sq:
+        return False
+    return sq in RESPONSE_WORDS or is_backchannel(text) or text.strip()[-1:] in "？?"
+
+
+def _only_non_word_chars(text: str) -> bool:
+    t = text.strip()
+    return bool(t) and all(c in NON_WORD_CHARS for c in t)
+
+
+def _pyannote_supported(diar: list[dict], speaker, a: float, b: float) -> bool:
+    """短い区間の話者が、pyannote上で独立した発話として十分な長さ・被覆を持つか。"""
+    if speaker is None:
+        return False
+    span = max(b - a, 0.01)
+    for d in diar:
+        if d["end"] <= a:
+            continue
+        if d["start"] >= b:
+            break
+        if d["speaker"] == speaker and (d["end"] - d["start"]) >= SUPPORT_MIN_SEG_SEC \
+                and (min(b, d["end"]) - max(a, d["start"])) / span >= SUPPORT_COVER:
+            return True
+    return False
+
+
+def _is_overlap(diar: list[dict], a: float, b: float) -> bool:
+    """この区間で2人以上が同時に話している時間の割合が一定以上か。"""
+    span = max(b - a, 0.01)
+    ev = []
+    for d in diar:
+        if d["end"] <= a:
+            continue
+        if d["start"] >= b:
+            break
+        ev += [(max(d["start"], a), 1), (min(d["end"], b), -1)]
+    ev.sort()
+    n, last, both = 0, a, 0.0
+    for t, k in ev:
+        if n >= 2:
+            both += t - last
+        n, last = n + k, t
+    return both / span >= OVERLAP_RATIO
+
+
+def _morpheme_boundaries(sent: list[dict]) -> set[int] | None:
+    """文の中で、形態素の境界になるトークン位置（0..len）。janome が無ければ None。"""
+    global _TOKENIZER
+    if _JanomeTokenizer is None:
+        return None
+    if _TOKENIZER is None:
+        _TOKENIZER = _JanomeTokenizer()
+    starts, pos = [], 0
+    for tk in sent:
+        starts.append(pos)
+        pos += len(tk["t"])
+    at = {p: i for i, p in enumerate(starts)}
+    at[pos] = len(sent)
+    text = "".join(tk["t"] for tk in sent)
+    out, off = {0, len(sent)}, 0
+    for m in _TOKENIZER.tokenize(text):
+        off += len(m.surface)
+        if off in at:
+            out.add(at[off])
+    return out
+
+
+def _can_absorb(runs: list[list[dict]], k: int, diar: list[dict] | None, edges: set[int] | None) -> bool:
+    """短い別話者の区間 runs[k] を前後の話者へ戻してよいか。**かなり強い根拠が揃うときだけ** True。
+    すべて必要: ①前後が同一の確定話者 ②独立した応答・相槌として成立しない ③overlapではない
+    ④pyannote上で独立した発話としての支持がない ⑤語の断片である（ー・小書き文字だけ、または語の内部で切れている）。
+    迷うときは吸収せず（実発話を消さない）、review_required で要確認にする。"""
+    if k == 0 or k == len(runs) - 1:
+        return False
+    before, after, me = runs[k - 1][0]["speaker"], runs[k + 1][0]["speaker"], runs[k][0]["speaker"]
+    if before is None or before != after or me == before:
+        return False
+    text = "".join(t["t"] for t in runs[k]).strip()
+    if _is_standalone_response(text):
+        return False
+    a, b = runs[k][0]["start"], runs[k][-1]["end"]
+    if diar is not None and (_is_overlap(diar, a, b) or _pyannote_supported(diar, me, a, b)):
+        return False
+    if _only_non_word_chars(text):
+        return True
+    if edges is not None:
+        lo = sum(len(r) for r in runs[:k])
+        hi = lo + len(runs[k])
+        return lo not in edges or hi not in edges          # 語の内部で切れている断片
+    return False
+
+
+def _split_sentence_by_speaker(sent: list[dict], min_run_sec: float, min_chars: int = 4, diar: list[dict] | None = None
+                               ) -> tuple[list[list[dict]], list[bool]]:
+    """1文の中の話者交替を扱う。
+    十分に長い区間（min_run_sec 以上かつ min_chars 以上）は別発言として確定する。
+    短い区間は『短いから前後へ吸収』しない。独立した応答（うん・はい・そう…）や、overlap・pyannoteの支持がある区間は残し、
+    前後が同一話者で、語の断片であることが明らかな場合だけ前後へ戻す（_can_absorb）。
+    返り値: (run のリスト, 各runが『短いが別話者として残した』ものか)。"""
     runs: list[list[dict]] = []
     for tk in sent:
         if runs and runs[-1][0]["speaker"] == tk["speaker"]:
             runs[-1].append(tk)
         else:
             runs.append([tk])
+    edges = _morpheme_boundaries(sent) if len(runs) > 1 else None
+    kept: set[int] = set()
     while len(runs) > 1:
         short = [k for k, r in enumerate(runs)
-                 if (r[-1]["end"] - r[0]["start"]) < min_run_sec or len(r) < min_chars]
+                 if ((r[-1]["end"] - r[0]["start"]) < min_run_sec or len(r) < min_chars) and id(r) not in kept]
         if not short:
             break
         k = min(short, key=lambda k: runs[k][-1]["end"] - runs[k][0]["start"])
-        nbrs = [j for j in (k - 1, k + 1) if 0 <= j < len(runs)]
-        j = max(nbrs, key=lambda j: runs[j][-1]["end"] - runs[j][0]["start"])
+        if not _can_absorb(runs, k, diar, edges):
+            kept.add(id(runs[k]))
+            continue
         for tk in runs[k]:
-            tk["speaker"] = runs[j][0]["speaker"]
-        lo, hi = sorted((j, k))
-        runs[lo:hi + 1] = [runs[lo] + runs[hi]]
-    return runs
+            tk["speaker"] = runs[k - 1][0]["speaker"]
+        runs[k - 1:k + 2] = [runs[k - 1] + runs[k] + runs[k + 1]]
+        edges = _morpheme_boundaries([tk for r in runs for tk in r]) if len(runs) > 1 else None
+    flags = [len(runs) > 1 and ((r[-1]["end"] - r[0]["start"]) < min_run_sec or len(r) < min_chars) for r in runs]
+    return runs, flags
 
 
 # ------------------------------------------------------------------ turns
@@ -205,6 +319,7 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
     if not tokens:
         return []
     diarized = bool(diar)
+    diar_sorted = sorted(diar, key=lambda d: d["start"]) if diarized else None
     if diarized:
         _assign_token_speakers(tokens, diar)
         if word_vote and aligned.get("language", "ja") == "ja":
@@ -226,12 +341,17 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
     if cur:
         sentences.append(cur)
     units: list[list[dict]] = []
+    short_flags: list[bool] = []   # 短い別話者の区間を、吸収せず残したもの（review_required で要確認にする）
     cuts: list[tuple[bool, bool]] = []  # (cut_start, cut_end): 話者交替で文の途中から始まる / 文の終わり前に切れる
     for sent in sentences:
-        runs = _split_sentence_by_speaker(sent, min_run_sec) if diarized else [sent]
+        if diarized:
+            runs, shorts = _split_sentence_by_speaker(sent, min_run_sec, diar=diar_sorted)
+        else:
+            runs, shorts = [sent], [False]
         for i, r in enumerate(runs):
             units.append(r)
             cuts.append((i > 0, i < len(runs) - 1))
+            short_flags.append(shorts[i])
 
     # 2) unit → turn（話者決定と信頼度）
     def make(unit: list[dict]) -> dict:
@@ -270,10 +390,11 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
                 "avg_logprob": (sum(lp) / len(lp)) if lp else None}
 
     raw_units = []
-    for u, (cs, ce) in zip(units, cuts):
+    for u, (cs, ce), sf in zip(units, cuts, short_flags):
         if "".join(t["t"] for t in u).strip():
             m = make(u)
             m["cut_start"], m["cut_end"] = cs, ce
+            m["short_kept"] = sf
             raw_units.append(m)
 
     # 3) 同一話者・短い間隔・長すぎない範囲で結合（別話者が挟まれば結合しない）
@@ -288,6 +409,7 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
             p["end"] = u["end"]
             p["_pause"] = u["_pause"]
             p["cut_end"] = u["cut_end"]
+            p["short_kept"] = False      # 結合して短くなくなった
             p["chunk_end"] = u["chunk_end"]
             p["speech_end"] = u["speech_end"]
             p["segment_ids"] = sorted(set(p["segment_ids"]) | set(u["segment_ids"]))
@@ -440,7 +562,7 @@ def render_magazine(turns: list[dict], title: str, timestamps: bool = False, not
 def write_json(path: Path, turns: list[dict], include_words: bool = True) -> None:
     keys = ["id", "speaker_id", "speaker_name", "speaker_uncertain", "speaker_guess", "start", "end",
             "raw_text", "clean_text", "edited_text", "clean_dropped", "edited_dropped",
-            "edit_source", "cut_start", "cut_end", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
+            "edit_source", "cut_start", "cut_end", "short_kept", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
     rows = []
     for t in turns:
         row = {k: t.get(k) for k in keys if k in t or k in ("edited_text",)}
