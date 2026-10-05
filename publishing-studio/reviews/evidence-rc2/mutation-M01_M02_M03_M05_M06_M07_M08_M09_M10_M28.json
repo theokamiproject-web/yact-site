@@ -1,0 +1,83 @@
+{
+ "M01": {
+  "name": ".fit overflow detection disabled",
+  "tests": "metrics.test.mjs",
+  "result": "KILLED",
+  "by": [
+   ".fit overflow is detected independently of the outside-trim check"
+  ]
+ },
+ "M02": {
+  "name": "spread must start on an even page: check removed",
+  "tests": "model.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "invalid layout / variant / span / spread parity"
+  ]
+ },
+ "M03": {
+  "name": "stale-PDF hash made constant",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "stale PDF: article, caption, image bytes, flatplan, issue.yaml, theme_overrides, issue theme.css, credits each -> P10 FAIL",
+   "sourceHash covers theme and layout files (CSS change) and ignores notes/"
+  ]
+ },
+ "M05": {
+  "name": "component CSS specificity: .page h1 restored",
+  "tests": "metrics.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "CSS cascade: component classes win over the base heading rules (RC1 `.page h1` specificity accident)"
+  ]
+ },
+ "M06": {
+  "name": "PDF page-count check always passes",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "page count mismatch (PDF has fewer pages than the issue) -> P09 FAIL"
+  ]
+ },
+ "M07": {
+  "name": "rereview disposition check removed",
+  "tests": "critic.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "rereview requires a disposition for every MEDIUM+ finding of earlier stages"
+  ]
+ },
+ "M08": {
+  "name": "missing caption FAIL downgraded to WARNING",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "missing caption -> P05 FAIL (validate only warns)"
+  ]
+ },
+ "M09": {
+  "name": "folio problems ignored",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "page numbers: duplicate, missing and wrong folio -> P20 FAIL"
+  ]
+ },
+ "M10": {
+  "name": "blank-page check disabled",
+  "tests": "preflight.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "blank page -> P17 FAIL unless declared intentional"
+  ]
+ },
+ "M28": {
+  "name": "text capacity ignores measured columns",
+  "tests": "text.test.mjs",
+  "result": "KILLED",
+  "by": [
+   "multi-column frames: usable lines are columns x lines minus one slack line per column"
+  ]
+ }
+}
