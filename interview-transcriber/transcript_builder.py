@@ -213,8 +213,8 @@ def _pyannote_supported(diar: list[dict], speaker, a: float, b: float) -> bool:
     return False
 
 
-def _is_overlap(diar: list[dict], a: float, b: float) -> bool:
-    """この区間で2人以上が同時に話している時間の割合が一定以上か。"""
+def _overlap_ratio(diar: list[dict], a: float, b: float) -> float:
+    """この区間で2人以上が同時に話している時間の割合。"""
     span = max(b - a, 0.01)
     ev = []
     for d in diar:
@@ -229,7 +229,12 @@ def _is_overlap(diar: list[dict], a: float, b: float) -> bool:
         if n >= 2:
             both += t - last
         n, last = n + k, t
-    return both / span >= OVERLAP_RATIO
+    return both / span
+
+
+def _is_overlap(diar: list[dict], a: float, b: float) -> bool:
+    """この区間で2人以上が同時に話している時間の割合が一定以上か。"""
+    return _overlap_ratio(diar, a, b) >= OVERLAP_RATIO
 
 
 def _morpheme_boundaries(sent: list[dict]) -> set[int] | None:
@@ -311,10 +316,168 @@ def _split_sentence_by_speaker(sent: list[dict], min_run_sec: float, min_chars: 
     return runs, flags
 
 
+# ------------------------------------------------------------------ 話者不明の安全な再結合（候補2）
+# 方針: 話者不明を前後の既知話者へ**吸収しない**。細切れになった同一発話を、**話者不明のまま**文字列の連結だけで再結合する（作文・補完なし）。
+# 自動で変更するのは HIGH だけ。MEDIUM は review_required の要確認、LOW は変更しない。
+UNK_JOIN_GAP = 0.3         # HIGH: 断片どうしの間がこれ以下
+UNK_CAND_GAP = 0.5         # MEDIUM: これ以下
+UNK_OVERLAP_SAFE = 0.15    # 断片が重なり発話の疑い（これ以上は自動で変更しない）
+UNK_OVERLAP_NO = 0.30      # これ以上は変更しない（LOW）
+UNK_MAX_FRAGMENTS = 3
+BOUND_POS = ("助詞", "助動詞", "接尾", "非自立")   # 直前の語に付く語（単独の発話の頭にならない）
+
+
+def _continuity(texts: list[str]) -> bool | None:
+    """連結した文字列で、断片の継ぎ目が語の内部、または直前の語に付く語（助詞・助動詞など）の頭か。janome が無ければ None。"""
+    global _TOKENIZER
+    if _JanomeTokenizer is None:
+        return None
+    if _TOKENIZER is None:
+        _TOKENIZER = _JanomeTokenizer()
+    junctions, pos = [], 0
+    for t in texts[:-1]:
+        pos += len(t)
+        junctions.append(pos)
+    spans, off = [], 0
+    for m in _TOKENIZER.tokenize("".join(texts)):
+        spans.append((off, off + len(m.surface), m.part_of_speech))
+        off += len(m.surface)
+    for j in junctions:
+        for a, b, pos_ in spans:
+            if a < j < b:
+                return True                              # 語の内部で切れている
+            if a == j and pos_.startswith(BOUND_POS):
+                return True                              # 直前の語に付く語から始まっている
+    return False
+
+
+def _join_unknown(parts: list[dict]) -> dict:
+    """断片を、話者不明のまま文字列の連結だけで1つのturnにする（文章の補完・作文はしない）。"""
+    first, last = parts[0], parts[-1]
+    lps = [x["avg_logprob"] for x in parts if x["avg_logprob"] is not None]
+    return {**first, "raw_text": "".join(x["raw_text"] for x in parts), "end": last["end"], "_pause": last["_pause"],
+            "speaker_id": None, "speaker_uncertain": True, "speaker_guess": None,
+            "cut_start": first["cut_start"], "cut_end": last["cut_end"], "short_kept": False,
+            "chunk_end": last["chunk_end"], "speech_end": last["speech_end"],
+            "segment_ids": sorted({i for x in parts for i in x["segment_ids"]}),
+            "words": [w for x in parts for w in x["words"]], "avg_logprob": (sum(lps) / len(lps)) if lps else None,
+            "unknown_joined": len(parts)}
+
+
+def _rank(c: str) -> int:
+    return {"HIGH": 2, "MEDIUM": 1, "LOW": 0}[c]
+
+
+def _evaluate_unknown_chain(parts: list[dict], diar: list[dict], two_sided: bool) -> tuple[str, list[str], dict]:
+    """parts = [話者不明 or 既知の短い断片, ...]（時系列で連続）。(確信度, 根拠, 特徴量) を返す。"""
+    conf, why, feat = "HIGH", [], {}
+    frags = [p for p in parts if p["speaker_id"] is not None]
+    unk = [p for p in parts if p["speaker_id"] is None]
+    feat["pieces"] = len(parts)
+    feat["fragments"] = [(p["speaker_id"], p["raw_text"], round(p["end"] - p["start"], 2)) for p in frags]
+    def cap(c: str, msg: str):
+        nonlocal conf
+        if _rank(c) < _rank(conf):
+            conf = c
+        why.append(msg)
+    for f in frags:
+        if _is_standalone_response(f["raw_text"]):
+            cap("LOW", f"「{f['raw_text']}」は独立した応答として成立しうる（残す）")
+        if _pyannote_supported(diar, f["speaker_id"], f["start"], f["speech_end"]):
+            cap("LOW", f"「{f['raw_text']}」はpyannoteが独立した発話として支持している（奪わない）")
+        r = _overlap_ratio(diar, f["start"], f["speech_end"])
+        feat.setdefault("overlap", []).append(round(r, 2))
+        if r >= UNK_OVERLAP_NO:
+            cap("LOW", f"重なり発話の疑いが強い（{r:.2f}）")
+        elif r >= UNK_OVERLAP_SAFE:
+            cap("MEDIUM", f"重なり発話の疑い（{r:.2f}）")
+    for u in unk:
+        if u.get("speaker_guess"):
+            cap("MEDIUM", "話者不明の理由が重なり（複数話者が拮抗）。1人の発話と自動判断しない")
+        elif _overlap_ratio(diar, u["start"], u["speech_end"]) >= UNK_OVERLAP_SAFE:
+            cap("MEDIUM", "話者不明の区間に重なりがある")
+    gaps = [max(0.0, b["start"] - a["end"]) + (a.get("_pause") or 0.0) for a, b in zip(parts, parts[1:])]
+    feat["gaps"] = [round(g, 2) for g in gaps]
+    if gaps and max(gaps) > UNK_CAND_GAP:
+        cap("LOW", f"断片の間が{max(gaps):.2f}秒と長い")
+    elif gaps and max(gaps) > UNK_JOIN_GAP:
+        cap("MEDIUM", f"断片の間が{max(gaps):.2f}秒（0.3秒を超える）")
+    if any(a["raw_text"].strip()[-1:] in SENT_END for a in parts[:-1] if a["raw_text"].strip()):
+        cap("MEDIUM", "継ぎ目に文末の句読点がある（別の文の可能性）")
+    if sum(len(p["raw_text"]) for p in parts) > 140:
+        cap("LOW", "連結すると長すぎる")
+    cont = _continuity([p["raw_text"] for p in parts])
+    feat["continuity"] = cont
+    if frags:
+        if cont is None:
+            cap("MEDIUM", "形態素解析（janome）が無く、語の連続性を確認できない")
+        elif not cont:
+            cap("MEDIUM", "継ぎ目が語・助詞の連続になっていない")
+        else:
+            why.append("継ぎ目が語の内部、または直前の語に付く語の頭")
+        if not two_sided:
+            cap("MEDIUM", "片側だけが話者不明（もう一方は確定話者の発話）")
+    else:
+        why.append("話者不明どうしが連続し、継ぎ目の間が短い" if conf == "HIGH" else "話者不明どうし")
+    if conf == "HIGH":
+        why.append("pyannoteの支持・重なり・応答語の観点で問題なし")
+    return conf, why, feat
+
+
+def rejoin_unknown_turns(turns: list[dict], diar: list[dict] | None) -> dict:
+    """話者不明の細切れを、**話者不明のまま**再結合する（HIGHだけ自動）。turns をその場で更新し、集計を返す。"""
+    stats = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    if not diar:
+        return stats
+    diar = sorted(diar, key=lambda d: d["start"])
+    out: list[dict] = []
+    i, n = 0, len(turns)
+    def is_frag(t): return t["speaker_id"] is not None and t.get("short_kept")
+    while i < n:
+        t = turns[i]
+        chain, k = None, i
+        if t["speaker_id"] is None:
+            k = i + 1
+            while k < n and is_frag(turns[k]) and k - i <= UNK_MAX_FRAGMENTS:
+                k += 1
+            if k < n and turns[k]["speaker_id"] is None:                       # 話者不明 → [既知の短い断片…] → 話者不明
+                chain = (list(range(i, k + 1)), True)
+            elif k > i + 1:                                                    # 話者不明 → 既知の短い断片…（もう片側は確定話者）
+                chain = (list(range(i, k)), False)
+        if chain is None and t["speaker_id"] is not None and is_frag(t):       # 既知の短い断片… → 話者不明
+            k = i
+            while k < n and is_frag(turns[k]) and k - i < UNK_MAX_FRAGMENTS:
+                k += 1
+            if k < n and turns[k]["speaker_id"] is None and k > i:
+                chain = (list(range(i, k + 1)), False)
+        if chain is None:
+            out.append(t)
+            i += 1
+            continue
+        idx, two = chain
+        parts = [turns[x] for x in idx]
+        conf, why, feat = _evaluate_unknown_chain(parts, diar, two)
+        stats[conf] += 1
+        cand_text = "".join(p["raw_text"] for p in parts)
+        if conf == "HIGH":
+            out.append(_join_unknown(parts))
+            i = idx[-1] + 1
+            continue
+        parts[0]["unknown_candidate"] = {"confidence": conf, "candidate_text": cand_text, "pieces": len(parts), "why": why,
+                                         "features": {k2: v for k2, v in feat.items() if k2 != "pieces"}}
+        # 評価済みの断片は二重に数えない。末尾が話者不明なら、それは次の連鎖の先頭になりうるので残す
+        end = idx[-1] if turns[idx[-1]]["speaker_id"] is None else idx[-1] + 1
+        out.extend(turns[i:end])
+        i = end
+    turns[:] = out
+    return stats
+
+
 # ------------------------------------------------------------------ turns
 def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[dict] | None = None,
                 merge_gap: float | None = None, max_chars: int = 140, min_run_sec: float = 0.6,
-                mark_unclear_logprob: float | None = None, word_vote: bool = True) -> list[dict]:
+                mark_unclear_logprob: float | None = None, word_vote: bool = True,
+                unknown_rejoin: bool = True) -> list[dict]:
     tokens = _tokens_from_aligned(aligned, whisper_segments)
     if not tokens:
         return []
@@ -418,6 +581,8 @@ def build_turns(aligned: dict, diar: list[dict] | None, whisper_segments: list[d
             p["avg_logprob"] = sum(lps) / len(lps) if lps else None
         else:
             turns.append(u)
+    if diarized and unknown_rejoin:
+        rejoin_unknown_turns(turns, diar_sorted)
     for i, t in enumerate(turns):
         t["id"] = i
         t["pause_after"] = round(t.pop("_pause", 0.0), 3)
@@ -562,7 +727,7 @@ def render_magazine(turns: list[dict], title: str, timestamps: bool = False, not
 def write_json(path: Path, turns: list[dict], include_words: bool = True) -> None:
     keys = ["id", "speaker_id", "speaker_name", "speaker_uncertain", "speaker_guess", "start", "end",
             "raw_text", "clean_text", "edited_text", "clean_dropped", "edited_dropped",
-            "edit_source", "cut_start", "cut_end", "short_kept", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
+            "edit_source", "cut_start", "cut_end", "short_kept", "unknown_joined", "unknown_candidate", "chunk_end", "speech_end", "segment_ids", "hallucination", "reject_ops", "drop_reason", "low_confidence", "avg_logprob", "unclear", "llm_rejected_text"]
     rows = []
     for t in turns:
         row = {k: t.get(k) for k in keys if k in t or k in ("edited_text",)}

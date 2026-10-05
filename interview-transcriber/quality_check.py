@@ -238,6 +238,24 @@ def _render_short_turns(turns) -> list[str]:
     return L
 
 
+def _render_unknown_candidates(turns) -> list[str]:
+    """話者不明の細切れの再結合。HIGHは自動で再結合済み（話者不明のまま）。MEDIUMは人間確認、LOWは変更なし。"""
+    joined = [t for t in turns if t.get("unknown_joined")]
+    cands = [t for t in turns if t.get("unknown_candidate")]
+    med = [t for t in cands if t["unknown_candidate"]["confidence"] == "MEDIUM"]
+    low = [t for t in cands if t["unknown_candidate"]["confidence"] == "LOW"]
+    L = ["## 話者不明の細切れ（再結合）", "",
+         "話者不明を前後の既知話者へ吸収することはしません。細切れの同一発話を**話者不明のまま**文字列連結だけで再結合します（HIGHのみ自動）。",
+         f"自動再結合(HIGH): {len(joined)}件　要確認(MEDIUM): {len(med)}件　変更なし(LOW): {len(low)}件", ""]
+    for t in joined[:100]:
+        L.append(f"- [自動再結合] {fmt_ts(t['start'])}　話者不明：{t['raw_text']}（{t['unknown_joined']}断片を連結）")
+    for t in med[:100]:
+        c = t["unknown_candidate"]
+        L.append(f"- [要人間確認] {fmt_ts(t['start'])}　候補「{c['candidate_text']}」（話者不明のまま）　理由: " + " / ".join(c["why"][:3]))
+    L.append("")
+    return L
+
+
 def _render_untranscribed(rows, summary, turns) -> list[str]:
     names = {t["speaker_id"]: t.get("speaker_name", "") for t in turns if t.get("speaker_id")}
     L = ["## ASR未転写候補", "",
@@ -265,6 +283,8 @@ def write_review(path, issues: list[Issue], extra_notes: list[str] | None = None
         lines += _render_findings(findings, turns, keep_hallucinations)
     if turns is not None and any(t.get("short_kept") for t in turns):
         lines += _render_short_turns(turns)
+    if turns is not None and any(t.get("unknown_joined") or t.get("unknown_candidate") for t in turns):
+        lines += _render_unknown_candidates(turns)
     if untranscribed is not None and turns is not None:
         lines += _render_untranscribed(untranscribed[0], untranscribed[1], turns)
     if not issues and not dictionary_candidates and not findings and not (untranscribed and untranscribed[0]):
