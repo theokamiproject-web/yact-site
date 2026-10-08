@@ -35,7 +35,7 @@ P0 = 0 / リリースを止める P1 = **2**。v0.1 を freeze しない。修�
 | P1-3 判型相対化 | FIXED | tokens は比率/`--type-scale`。mm/pt 直値は物理トークンと `calc(Npt*--type-scale)` のみ。B5 は A5 の中央浮きではない（余白・opener・画像比が比率で追従） |
 | P1-4 contents 容量 | FIXED | TEST ISSUE 02 の目次に 10 項目すべて（p18・p20 を含む）、欠けなし。M15/M16（検出除去）は KILLED |
 | P1-5 指標の妥当性 | **PARTIALLY FIXED** | MEASUREMENT/HEURISTIC/REVIEW_REQUIRED に分離、`fit_fill` 廃止、`body_pt` 修正は確認。**だが** `column`/`profile`/`colophon` 等は `sparse_allowed: true` で一律免除。02 の p3（占有 6.5%・extent 0.24）、p22（3.2%・0.21）、p10/p17 は未宣言なのに P30 PASS（P1-A） |
-| P1-6 テスト補強 | PARTIALLY FIXED | 単一実行で 28/28 KILLED。独立ミュータント: 画像バイトをハッシュから外す（X2）・captions を外す（X3）は KILLED、**themes/layouts をハッシュ対象から外す（X1）は SURVIVED**（全 98 テストのうち落ちた 3 件は無関係なサンドボックス差異。ステール検出テストは通る） |
+| P1-6 テスト補強 | PARTIALLY FIXED | 単一実行で 28/28 KILLED。独立ミュータント: 画像バイトをハッシュから外す（X2）・captions を外す（X3）は KILLED、**themes/layouts をハッシュ対象から外す（X1）は SURVIVED**（全 98 テストのうち落ちた 3 件は boundary 系で、サンドボックス複製に .git/.githooks が無いための失敗とみられる（ベースライン未取得）。鮮度検出系テストは通る） |
 | P1-7 critic 保護 | PARTIALLY FIXED | 構造化レビューは `--reset` 拒否・`--force` で `archive/<ts>/` 退避・`source_hash` 束縛・ソース変更後は STALE を確認。**自由記述のみ（status: pending）のレビューは `--reset` で無警告・無バックアップで消失**（P2） |
 | P1-8 サンプル組版 | PARTIALLY FIXED | 孤立行 0、ガター/柱の明暗は改善。**p6 の小見出しが欄末で本文と泣き別れ**（検出なし）、行長ばらつき、02 の未宣言スパース |
 | P1-9 独立再レビュー | 本書 | 上記「独立性の限界」参照 |
