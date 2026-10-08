@@ -1,0 +1,31 @@
+M01 KILLED   .fit overflow detection disabled  <- .fit overflow is detected independently of the outside-trim check
+M02 KILLED   spread must start on an even page: check removed  <- invalid layout / variant / span / spread parity
+M03 KILLED   stale-PDF hash made constant  <- stale PDF: article, caption, image bytes, flatplan, issue.yaml, theme_overrides,
+M04 KILLED   Q/A orphan rule removed  <- a question never ends a page without its answer (Q&A orphan rule)
+M05 KILLED   component CSS specificity: .page h1 restored  <- CSS cascade: component classes win over the base heading rules (RC1 `.page h1` s
+M06 KILLED   PDF page-count check always passes  <- page count mismatch (PDF has fewer pages than the issue) -> P09 FAIL
+M07 KILLED   rereview disposition check removed  <- rereview requires a disposition for every MEDIUM+ finding of earlier stages
+M08 KILLED   missing caption FAIL downgraded to WARNING  <- missing caption -> P05 FAIL (validate only warns)
+M09 KILLED   folio problems ignored  <- page numbers: duplicate, missing and wrong folio -> P20 FAIL
+M10 KILLED   blank-page check disabled  <- blank page -> P17 FAIL unless declared intentional
+M11 KILLED   safe-area check disabled  <- broken image -> P18 FAIL; safe-area violation -> P21 WARNING; short bleed -> P23
+M12 KILLED   image resolution check disabled  <- low image resolution: <100ppi FAIL, <200ppi WARNING
+M13 KILLED   bleed-box check disabled  <- wrong trim size -> P11 FAIL; invalid bleed (BleedBox == TrimBox) -> P12 FAIL
+M14 KILLED   blind pack leaks the flatplan  <- publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack
+M15 KILLED   contents overflow check removed (validate)  <- CONTENTS_OVERFLOW / LAYOUT_OVERFLOW are errors, raised from the measured layout 
+M16 KILLED   contents completeness check removed (preflight)  <- contents entry lost -> P31 FAIL; orphan lines -> P29 WARNING (heuristic); under-
+M17 KILLED   publishing boundary: not-ignored check removed  <- private issue inside the work tree and NOT ignored => FAIL
+M18 KILLED   manuscript HTML passes through unescaped  <- manuscript HTML is escaped, never executed: script/style/iframe/object/embed/on*
+M19 KILLED   image URL percent-encoding removed  <- asset names with Japanese, spaces, "\#", parentheses render in build, render and
+M20 KILLED   Chromium sandbox disabled by default  <- Chromium sandbox policy: on by default, off only explicitly or in the managed ro
+M21 KILLED   theme external-resource check removed  <- theme CSS cannot load remote resources
+M22 KILLED   critic --reset overwrites authored reviews  <- --reset REFUSES while any review holds work, and changes nothing
+M23 KILLED   stale reviews gate the new output  <- reviews are bound to the output: matching source_hash is fresh, anything else is
+M24 KILLED   page-relative token replaced by a millimetre literal  <- tokens.css defines the three families and page-relative margins (no mm margins)
+M25 KILLED   density heuristics return nothing  <- accidental sparseness is flagged; declared intent (with a reason) is not; quote/
+M26 KILLED   orphan-line measurement disabled  <- orphan lines: a last line of one or two characters is reported, a full last line
+M27 KILLED   undefined grid helper class (c-1-5 removed)  <- every grid helper class used by a component (c-1-5, c-all, …) is defined in the 
+M28 KILLED   text capacity ignores measured columns  <- multi-column frames: usable lines are columns x lines minus one slack line per c
+
+28/28 mutations killed
+EXIT 0

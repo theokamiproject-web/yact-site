@@ -1,0 +1,605 @@
+
+> publication:test
+> node --test "publishing-studio/tests/*.test.mjs"
+
+TAP version 13
+# Subtest: classification: every file is one of the five classes
+ok 1 - classification: every file is one of the five classes
+  ---
+  duration_ms: 4.342721
+  type: 'test'
+  ...
+# Subtest: boundary.json examples and the repository .gitignore allow-list are identical
+ok 2 - boundary.json examples and the repository .gitignore allow-list are identical
+  ---
+  duration_ms: 3.508423
+  type: 'test'
+  ...
+# Subtest: nothing private or generated is tracked in this repository
+ok 3 - nothing private or generated is tracked in this repository
+  ---
+  duration_ms: 28.723715
+  type: 'test'
+  ...
+# Subtest: private issue inside the work tree and NOT ignored => FAIL
+ok 4 - private issue inside the work tree and NOT ignored => FAIL
+  ---
+  duration_ms: 347.234107
+  type: 'test'
+  ...
+# Subtest: private issue ignored by git and untracked => ok
+ok 5 - private issue ignored by git and untracked => ok
+  ---
+  duration_ms: 217.87219
+  type: 'test'
+  ...
+# Subtest: private issue force-tracked despite ignore => FAIL (and staged detection)
+ok 6 - private issue force-tracked despite ignore => FAIL (and staged detection)
+  ---
+  duration_ms: 364.481242
+  type: 'test'
+  ...
+# Subtest: explicit override is accepted but reported as overridden
+ok 7 - explicit override is accepted but reported as overridden
+  ---
+  duration_ms: 315.15286
+  type: 'test'
+  ...
+# Subtest: allow-listed example inside the public tree is ok; issue outside any git tree is ok
+ok 8 - allow-listed example inside the public tree is ok; issue outside any git tree is ok
+  ---
+  duration_ms: 64.686358
+  type: 'test'
+  ...
+# Subtest: CLI: boundary-check --staged exits 1 when a private file is staged, 0 when clean
+ok 9 - CLI: boundary-check --staged exits 1 when a private file is staged, 0 when clean
+  ---
+  duration_ms: 911.871303
+  type: 'test'
+  ...
+# Subtest: pre-commit hook and CI workflow exist and call the boundary check
+ok 10 - pre-commit hook and CI workflow exist and call the boundary check
+  ---
+  duration_ms: 1.491622
+  type: 'test'
+  ...
+# Subtest: new-issue defaults to the git-ignored workspace/ (real issues never land in the public tree)
+ok 11 - new-issue defaults to the git-ignored workspace/ (real issues never land in the public tree)
+  ---
+  duration_ms: 567.221546
+  type: 'test'
+  ...
+# Subtest: validate / build / all REFUSE an issue that private source would make public; the override is explicit
+ok 12 - validate / build / all REFUSE an issue that private source would make public; the override is explicit
+  ---
+  duration_ms: 22438.140267
+  type: 'test'
+  ...
+# Subtest: all required components exist
+ok 13 - all required components exist
+  ---
+  duration_ms: 977.519342
+  type: 'test'
+  ...
+# Subtest: every component x variant renders the contracted number of pages and respects its contract
+ok 14 - every component x variant renders the contracted number of pages and respects its contract
+  ---
+  duration_ms: 17.192321
+  type: 'test'
+  ...
+# Subtest: setup: one real build creates the pack and the (empty) review templates
+ok 15 - setup: one real build creates the pack and the (empty) review templates
+  ---
+  duration_ms: 47590.143526
+  type: 'test'
+  ...
+# Subtest: isAuthored: an untouched template is not authored; status, findings, scores or reviewer make it authored
+ok 16 - isAuthored: an untouched template is not authored; status, findings, scores or reviewer make it authored
+  ---
+  duration_ms: 8.424031
+  type: 'test'
+  ...
+# Subtest: re-running the pipeline never changes an authored review (byte-identical) and writes no timestamps into it
+ok 17 - re-running the pipeline never changes an authored review (byte-identical) and writes no timestamps into it
+  ---
+  duration_ms: 1190.798624
+  type: 'test'
+  ...
+# Subtest: --reset REFUSES while any review holds work, and changes nothing
+ok 18 - --reset REFUSES while any review holds work, and changes nothing
+  ---
+  duration_ms: 1033.581606
+  type: 'test'
+  ...
+# Subtest: --reset --force archives every review file (timestamped) before writing empty templates
+ok 19 - --reset --force archives every review file (timestamped) before writing empty templates
+  ---
+  duration_ms: 1135.751118
+  type: 'test'
+  ...
+# Subtest: --reset without --force is allowed when nothing has been authored
+ok 20 - --reset without --force is allowed when nothing has been authored
+  ---
+  duration_ms: 1070.09703
+  type: 'test'
+  ...
+# Subtest: reviews are bound to the output: matching source_hash is fresh, anything else is stale and does not gate
+ok 21 - reviews are bound to the output: matching source_hash is fresh, anything else is stale and does not gate
+  ---
+  duration_ms: 86.439443
+  type: 'test'
+  ...
+# Subtest: preflight P27: no review -> MANUAL CHECK; stale review -> MANUAL CHECK; fresh review with open HIGH -> FAIL
+ok 22 - preflight P27: no review -> MANUAL CHECK; stale review -> MANUAL CHECK; fresh review with open HIGH -> FAIL
+  ---
+  duration_ms: 6095.796423
+  type: 'test'
+  ...
+# Subtest: template is pending, has all categories and the three required sections
+ok 23 - template is pending, has all categories and the three required sections
+  ---
+  duration_ms: 9.783993
+  type: 'test'
+  ...
+# Subtest: pending stages are reported as pending, not as problems
+ok 24 - pending stages are reported as pending, not as problems
+  ---
+  duration_ms: 568.067868
+  type: 'test'
+  ...
+# Subtest: complete review: parses findings (problem/evidence/pages/severity/fix) and validates
+ok 25 - complete review: parses findings (problem/evidence/pages/severity/fix) and validates
+  ---
+  duration_ms: 1.928418
+  type: 'test'
+  ...
+# Subtest: invalid severity, missing fix, bad page, duplicate id and empty scores are flagged
+ok 26 - invalid severity, missing fix, bad page, duplicate id and empty scores are flagged
+  ---
+  duration_ms: 0.987677
+  type: 'test'
+  ...
+# Subtest: rereview requires a disposition for every MEDIUM+ finding of earlier stages
+ok 27 - rereview requires a disposition for every MEDIUM+ finding of earlier stages
+  ---
+  duration_ms: 2.950675
+  type: 'test'
+  ...
+# Subtest: every component has a density contract; text components are not sparse_allowed and have a range for every role
+ok 28 - every component has a density contract; text components are not sparse_allowed and have a range for every role
+  ---
+  duration_ms: 24.946736
+  type: 'test'
+  ...
+# Subtest: the contract depends on the page role: a LAST page may be part-filled, a MIDDLE page may not (no single global threshold)
+ok 29 - the contract depends on the page role: a LAST page may be part-filled, a MIDDLE page may not (no single global threshold)
+  ---
+  duration_ms: 0.405351
+  type: 'test'
+  ...
+# Subtest: accidental sparseness is flagged; declared intent (with a reason) is not; quote/photo pages never are
+ok 30 - accidental sparseness is flagged; declared intent (with a reason) is not; quote/photo pages never are
+  ---
+  duration_ms: 49374.830794
+  type: 'test'
+  ...
+# Subtest: no millimetre / centimetre / inch literal in layouts/*.css or base theme (except tokens.css)
+ok 31 - no millimetre / centimetre / inch literal in layouts/*.css or base theme (except tokens.css)
+  ---
+  duration_ms: 4.203017
+  type: 'test'
+  ...
+# Subtest: no physical lengths hidden in component JS (inline styles) either
+ok 32 - no physical lengths hidden in component JS (inline styles) either
+  ---
+  duration_ms: 1.049268
+  type: 'test'
+  ...
+# Subtest: font sizes in component CSS are tokens or scaled with --type-scale (and never below --min-text)
+ok 33 - font sizes in component CSS are tokens or scaled with --type-scale (and never below --min-text)
+  ---
+  duration_ms: 1.355452
+  type: 'test'
+  ...
+# Subtest: tokens.css defines the three families and page-relative margins (no mm margins)
+ok 34 - tokens.css defines the three families and page-relative margins (no mm margins)
+  ---
+  duration_ms: 0.686819
+  type: 'test'
+  ...
+# Subtest: every grid helper class used by a component (c-1-5, c-all, …) is defined in the theme
+ok 35 - every grid helper class used by a component (c-1-5, c-all, …) is defined in the theme
+  ---
+  duration_ms: 1.062014
+  type: 'test'
+  ...
+#   NOTE: Chromium sandbox disabled: isolated remote container running as root (CLAUDE_CODE_REMOTE=true). Only use this in an isolated environment.
+# Subtest: .fit overflow is detected independently of the outside-trim check
+ok 36 - .fit overflow is detected independently of the outside-trim check
+  ---
+  duration_ms: 1445.468564
+  type: 'test'
+  ...
+# Subtest: text outside the trim box is detected
+ok 37 - text outside the trim box is detected
+  ---
+  duration_ms: 967.644764
+  type: 'test'
+  ...
+# Subtest: text frames report measured width/height/columns/font size/leading; occupancy follows the text amount
+ok 38 - text frames report measured width/height/columns/font size/leading; occupancy follows the text amount
+  ---
+  duration_ms: 910.106238
+  type: 'test'
+  ...
+# Subtest: orphan lines: a last line of one or two characters is reported, a full last line is not
+ok 39 - orphan lines: a last line of one or two characters is reported, a full last line is not
+  ---
+  duration_ms: 1223.708608
+  type: 'test'
+  ...
+# Subtest: content extent measures how far down the page content reaches
+ok 40 - content extent measures how far down the page content reaches
+  ---
+  duration_ms: 1264.316264
+  type: 'test'
+  ...
+# Subtest: body_pt measures running text (.body) only; null where a page has none
+ok 41 - body_pt measures running text (.body) only; null where a page has none
+  ---
+  duration_ms: 959.941454
+  type: 'test'
+  ...
+# Subtest: contents entries that do not fit are counted
+ok 42 - contents entries that do not fit are counted
+  ---
+  duration_ms: 975.507755
+  type: 'test'
+  ...
+# Subtest: CSS cascade: component classes win over the base heading rules (RC1 `.page h1` specificity accident)
+ok 43 - CSS cascade: component classes win over the base heading rules (RC1 `.page h1` specificity accident)
+  ---
+  duration_ms: 1599.412116
+  type: 'test'
+  ...
+# Subtest: sample issue validates with no errors
+ok 44 - sample issue validates with no errors
+  ---
+  duration_ms: 118.014267
+  type: 'test'
+  ...
+# Subtest: schema: issue.yaml/editorial.yaml/flatplan.yaml/articles conform
+ok 45 - schema: issue.yaml/editorial.yaml/flatplan.yaml/articles conform
+  ---
+  duration_ms: 0.824453
+  type: 'test'
+  ...
+# Subtest: schema: rejects bad issue (missing field, bad enum, unknown key)
+ok 46 - schema: rejects bad issue (missing field, bad enum, unknown key)
+  ---
+  duration_ms: 0.972316
+  type: 'test'
+  ...
+# Subtest: page count: issue.pages larger than flatplan -> FLATPLAN_GAP; not multiple of 4 -> error
+ok 47 - page count: issue.pages larger than flatplan -> FLATPLAN_GAP; not multiple of 4 -> error
+  ---
+  duration_ms: 7.864906
+  type: 'test'
+  ...
+# Subtest: flatplan: duplicate page -> FLATPLAN_OVERLAP; gap -> FLATPLAN_GAP
+ok 48 - flatplan: duplicate page -> FLATPLAN_OVERLAP; gap -> FLATPLAN_GAP
+  ---
+  duration_ms: 5.214093
+  type: 'test'
+  ...
+# Subtest: missing article file -> ARTICLE_MISSING
+ok 49 - missing article file -> ARTICLE_MISSING
+  ---
+  duration_ms: 1.889276
+  type: 'test'
+  ...
+# Subtest: article not placed -> ARTICLE_NOT_PLACED
+ok 50 - article not placed -> ARTICLE_NOT_PLACED
+  ---
+  duration_ms: 2.535314
+  type: 'test'
+  ...
+# Subtest: invalid layout / variant / span / spread parity
+ok 51 - invalid layout / variant / span / spread parity
+  ---
+  duration_ms: 9.015942
+  type: 'test'
+  ...
+# Subtest: missing image file -> MISSING_ASSET; missing required input -> MISSING_INPUT
+ok 52 - missing image file -> MISSING_ASSET; missing required input -> MISSING_INPUT
+  ---
+  duration_ms: 4.751836
+  type: 'test'
+  ...
+# Subtest: missing caption is a warning at validate time
+ok 53 - missing caption is a warning at validate time
+  ---
+  duration_ms: 7.671814
+  type: 'test'
+  ...
+# Subtest: text volume uses MEASURED frames: overlong body -> TEXT_MAY_OVERFLOW; no frames => text checks skipped
+ok 54 - text volume uses MEASURED frames: overlong body -> TEXT_MAY_OVERFLOW; no frames => text checks skipped
+  ---
+  duration_ms: 5.891389
+  type: 'test'
+  ...
+# Subtest: TEXT_NOT_PLACED: article with body text but no text layout
+ok 55 - TEXT_NOT_PLACED: article with body text but no text layout
+  ---
+  duration_ms: 2.218632
+  type: 'test'
+  ...
+# Subtest: CONTENTS_OVERFLOW / LAYOUT_OVERFLOW are errors, raised from the measured layout probe
+ok 56 - CONTENTS_OVERFLOW / LAYOUT_OVERFLOW are errors, raised from the measured layout probe
+  ---
+  duration_ms: 5.904631
+  type: 'test'
+  ...
+# Subtest: loader reports YAML errors without throwing
+ok 57 - loader reports YAML errors without throwing
+  ---
+  duration_ms: 0.443828
+  type: 'test'
+  ...
+# Subtest: new-issue creates a valid issue from the template; rejects duplicates and bad ids
+ok 58 - new-issue creates a valid issue from the template; rejects duplicates and bad ids
+  ---
+  duration_ms: 2836.258435
+  type: 'test'
+  ...
+# Subtest: validate CLI: exit 0 for the sample issue
+ok 59 - validate CLI: exit 0 for the sample issue
+  ---
+  duration_ms: 2180.228808
+  type: 'test'
+  ...
+# Subtest: validate CLI: missing image -> exit 1 and a MISSING_ASSET message
+ok 60 - validate CLI: missing image -> exit 1 and a MISSING_ASSET message
+  ---
+  duration_ms: 330.218833
+  type: 'test'
+  ...
+# Subtest: publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight
+ok 61 - publication:all on the sample issue: PDF, page PNGs, contact sheets, critic pack, preflight
+  ---
+  duration_ms: 21718.429497
+  type: 'test'
+  ...
+# Subtest: preflight FAILs on overflowing text and on a PDF that no longer matches the sources
+ok 62 - preflight FAILs on overflowing text and on a PDF that no longer matches the sources
+  ---
+  duration_ms: 26279.203468
+  type: 'test'
+  ...
+# Subtest: critic --check: completed reviews are validated and produce critic-report.json
+ok 63 - critic --check: completed reviews are validated and produce critic-report.json
+  ---
+  duration_ms: 2338.15566
+  type: 'test'
+  ...
+# Subtest: baseline: build once; the automated checks pass; verdict is never a bare PASS and never "ready"
+ok 64 - baseline: build once; the automated checks pass; verdict is never a bare PASS and never "ready"
+  ---
+  duration_ms: 23999.615781
+  type: 'test'
+  ...
+# Subtest: page count mismatch (PDF has fewer pages than the issue) -> P09 FAIL
+ok 65 - page count mismatch (PDF has fewer pages than the issue) -> P09 FAIL
+  ---
+  duration_ms: 2609.964059
+  type: 'test'
+  ...
+# Subtest: wrong trim size -> P11 FAIL; invalid bleed (BleedBox == TrimBox) -> P12 FAIL
+ok 66 - wrong trim size -> P11 FAIL; invalid bleed (BleedBox == TrimBox) -> P12 FAIL
+  ---
+  duration_ms: 4956.701991
+  type: 'test'
+  ...
+# Subtest: low image resolution: <100ppi FAIL, <200ppi WARNING
+ok 67 - low image resolution: <100ppi FAIL, <200ppi WARNING
+  ---
+  duration_ms: 3815.278031
+  type: 'test'
+  ...
+# Subtest: overflow / clipped text -> P19 FAIL (both .fit clipping and text outside the trim)
+ok 68 - overflow / clipped text -> P19 FAIL (both .fit clipping and text outside the trim)
+  ---
+  duration_ms: 4029.01905
+  type: 'test'
+  ...
+# Subtest: blank page -> P17 FAIL unless declared intentional
+ok 69 - blank page -> P17 FAIL unless declared intentional
+  ---
+  duration_ms: 3874.249266
+  type: 'test'
+  ...
+# Subtest: page numbers: duplicate, missing and wrong folio -> P20 FAIL
+ok 70 - page numbers: duplicate, missing and wrong folio -> P20 FAIL
+  ---
+  duration_ms: 5821.039297
+  type: 'test'
+  ...
+# Subtest: broken image -> P18 FAIL; safe-area violation -> P21 WARNING; short bleed -> P23 WARNING
+ok 71 - broken image -> P18 FAIL; safe-area violation -> P21 WARNING; short bleed -> P23 WARNING
+  ---
+  duration_ms: 5806.836151
+  type: 'test'
+  ...
+# Subtest: contents entry lost -> P31 FAIL; orphan lines -> P29 WARNING (heuristic); under-filled page -> P30 WARNING (heuristic)
+ok 72 - contents entry lost -> P31 FAIL; orphan lines -> P29 WARNING (heuristic); under-filled page -> P30 WARNING (heuristic)
+  ---
+  duration_ms: 5994.682712
+  type: 'test'
+  ...
+# Subtest: stale PDF: article, caption, image bytes, flatplan, issue.yaml, theme_overrides, issue theme.css, credits each -> P10 FAIL
+ok 73 - stale PDF: article, caption, image bytes, flatplan, issue.yaml, theme_overrides, issue theme.css, credits each -> P10 FAIL
+  ---
+  duration_ms: 22362.689554
+  type: 'test'
+  ...
+# Subtest: sourceHash covers theme and layout files (CSS change) and ignores notes/
+ok 74 - sourceHash covers theme and layout files (CSS change) and ignores notes/
+  ---
+  duration_ms: 10.528582
+  type: 'test'
+  ...
+# Subtest: missing image file -> P04 FAIL; unplaced article -> P02 FAIL; invalid spread start -> P01 FAIL
+ok 75 - missing image file -> P04 FAIL; unplaced article -> P02 FAIL; invalid spread start -> P01 FAIL
+  ---
+  duration_ms: 5939.571384
+  type: 'test'
+  ...
+# Subtest: render not current: sources changed and only build re-run -> P16 FAIL (PDF current, metrics/PNGs stale)
+ok 76 - render not current: sources changed and only build re-run -> P16 FAIL (PDF current, metrics/PNGs stale)
+  ---
+  duration_ms: 12487.899249
+  type: 'test'
+  ...
+# Subtest: missing caption -> P05 FAIL (validate only warns)
+ok 77 - missing caption -> P05 FAIL (validate only warns)
+  ---
+  duration_ms: 1771.23232
+  type: 'test'
+  ...
+# Subtest: A5 issue re-set as B5 (no other change): builds, no FAIL, regions keep their proportions
+ok 78 - A5 issue re-set as B5 (no other change): builds, no FAIL, regions keep their proportions
+  ---
+  duration_ms: 46280.277893
+  type: 'test'
+  ...
+# Subtest: TEST ISSUE 02 (B5, 24 pages) builds with no FAIL and keeps every contents entry
+ok 79 - TEST ISSUE 02 (B5, 24 pages) builds with no FAIL and keeps every contents entry
+  ---
+  duration_ms: 23884.319257
+  type: 'test'
+  ...
+# Subtest: contents that cannot fit FAIL validation (never build-success-with-loss)
+ok 80 - contents that cannot fit FAIL validation (never build-success-with-loss)
+  ---
+  duration_ms: 4914.829953
+  type: 'test'
+  ...
+# Subtest: test-issue-01: validate clean; all passes; only the documented warnings remain
+ok 81 - test-issue-01: validate clean; all passes; only the documented warnings remain
+  ---
+  duration_ms: 23283.798534
+  type: 'test'
+  ...
+# Subtest: test-issue-02: validate clean; all passes; only the documented warnings remain
+ok 82 - test-issue-02: validate clean; all passes; only the documented warnings remain
+  ---
+  duration_ms: 26339.201997
+  type: 'test'
+  ...
+# Subtest: TEST ISSUE 02 declares its intentionally sparse pages with a reason; accidental sparseness elsewhere would be flagged
+ok 83 - TEST ISSUE 02 declares its intentionally sparse pages with a reason; accidental sparseness elsewhere would be flagged
+  ---
+  duration_ms: 4.834074
+  type: 'test'
+  ...
+# Subtest: asset names with Japanese, spaces, "\#", parentheses render in build, render and PDF
+ok 84 - asset names with Japanese, spaces, "\#", parentheses render in build, render and PDF
+  ---
+  duration_ms: 20746.144554
+  type: 'test'
+  ...
+# Subtest: NFD file names (macOS) match NFC references
+ok 85 - NFD file names (macOS) match NFC references
+  ---
+  duration_ms: 146.077426
+  type: 'test'
+  ...
+# Subtest: path traversal / separators in image references are rejected
+ok 86 - path traversal / separators in image references are rejected
+  ---
+  duration_ms: 279.702231
+  type: 'test'
+  ...
+#   NOTE: Chromium sandbox disabled: isolated remote container running as root (CLAUDE_CODE_REMOTE=true). Only use this in an isolated environment.
+# Subtest: manuscript HTML is escaped, never executed: script/style/iframe/object/embed/on*=/javascript:/remote image
+ok 87 - manuscript HTML is escaped, never executed: script/style/iframe/object/embed/on*=/javascript:/remote image
+  ---
+  duration_ms: 21016.129938
+  type: 'test'
+  ...
+# Subtest: safe Markdown: allowed element list is exactly what the renderer can emit
+ok 88 - safe Markdown: allowed element list is exactly what the renderer can emit
+  ---
+  duration_ms: 31.545801
+  type: 'test'
+  ...
+# Subtest: theme CSS cannot load remote resources
+ok 89 - theme CSS cannot load remote resources
+  ---
+  duration_ms: 255.416757
+  type: 'test'
+  ...
+# Subtest: Chromium sandbox policy: on by default, off only explicitly or in the managed root container
+ok 90 - Chromium sandbox policy: on by default, off only explicitly or in the managed root container
+  ---
+  duration_ms: 0.920288
+  type: 'test'
+  ...
+# Subtest: measurement browser cannot reach the network
+ok 91 - measurement browser cannot reach the network
+  ---
+  duration_ms: 606.592315
+  type: 'test'
+  ...
+# Subtest: frame capacity comes from measured geometry (chars/line x lines x columns)
+ok 92 - frame capacity comes from measured geometry (chars/line x lines x columns)
+  ---
+  duration_ms: 3.616692
+  type: 'test'
+  ...
+# Subtest: multi-column frames: usable lines are columns x lines minus one slack line per column
+ok 93 - multi-column frames: usable lines are columns x lines minus one slack line per column
+  ---
+  duration_ms: 3.946776
+  type: 'test'
+  ...
+# Subtest: allocation: fills page 1 first, remainder goes on; the last page takes everything left
+ok 94 - allocation: fills page 1 first, remainder goes on; the last page takes everything left
+  ---
+  duration_ms: 0.521541
+  type: 'test'
+  ...
+# Subtest: a paragraph is split at a sentence boundary, continuation flagged `cont`
+ok 95 - a paragraph is split at a sentence boundary, continuation flagged `cont`
+  ---
+  duration_ms: 0.633731
+  type: 'test'
+  ...
+# Subtest: a question never ends a page without its answer (Q&A orphan rule)
+ok 96 - a question never ends a page without its answer (Q&A orphan rule)
+  ---
+  duration_ms: 0.345676
+  type: 'test'
+  ...
+# Subtest: block cost model: line counts follow the measure
+ok 97 - block cost model: line counts follow the measure
+  ---
+  duration_ms: 0.387652
+  type: 'test'
+  ...
+# Subtest: parseBlocks: Q:/A: labels, headings, and no HTML survives
+ok 98 - parseBlocks: Q:/A: labels, headings, and no HTML survives
+  ---
+  duration_ms: 21.691553
+  type: 'test'
+  ...
+1..98
+# tests 98
+# suites 0
+# pass 98
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 182568.791953
+EXIT 0

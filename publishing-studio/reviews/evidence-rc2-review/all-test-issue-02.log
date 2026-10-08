@@ -1,0 +1,38 @@
+
+> publication:all
+> node publishing-studio/scripts/all.mjs test-issue-02
+
+
+[1/5] validate
+
+[2/5] build (Vivliostyle PDF)
+  NOTE: Chromium sandbox disabled: isolated remote container running as root (CLAUDE_CODE_REMOTE=true). Only use this in an isolated environment.
+  vivliostyle 11.3.3 -> publishing-studio/output/test-issue-02/test-issue-02.pdf
+
+[3/5] render pages + contact sheets + metrics
+  rendered 24 page PNG(s) @110dpi -> publishing-studio/output/test-issue-02/pages
+  contact sheets: contact-4xN.png, contact-8xN.png, contact-spreads.png
+
+[4/5] critic preparation (review pack, rhythm, fingerprint)
+  review pack: publishing-studio/output/test-issue-02/review-pack
+  rhythm: publishing-studio/output/test-issue-02/rhythm.md (0 auto finding(s)); fingerprint: publishing-studio/output/test-issue-02/fingerprint.json
+  critic templates: publishing-studio/issues/test-issue-02/reviews/critic-{blind,context,rereview}.md
+  PENDING  blind: status is pending
+  PENDING  context: status is pending
+  PENDING  rereview: status is pending
+  critic-report.json: publishing-studio/output/test-issue-02/critic-report.json
+
+[5/5] preflight
+  MANUAL CHECK P13 crop marks: built without crop marks. Ask the printer whether they add them; rebuild with: npm run publication:build -- test-issue-02 --marks
+  WARNING      P14 fonts embedded: all 211 font object(s) embedded, but 211 are Type 3 (Chromium output). Some printers' preflight rejects Type 3; confirm with the printer
+  WARNING      P25 image colour space (RGB/CMYK): 14 RGB/grey source image(s), 0 CMYK. v0.1 does not convert colours; the printer (or a later step) must convert RGB→CMYK: cover.jpg, full-single.jpg, grid-1.jpg, grid-2.jpg, grid-3.jpg…
+  MANUAL CHECK P32 ICC profiles / output intent: no colour profile handling: images are untagged or sRGB and the PDF has no output intent. Not verified.
+  MANUAL CHECK P33 overprint / trapping / total ink coverage / black composition: not inspected at all. Small text in near-black RGB can become a 4-colour black on conversion; the all-page paper tint adds ink. Not verified.
+  MANUAL CHECK P34 commercial printer compatibility (PDF/X profile, imposition, creep, trim-mark spec): depends on the printer’s own specification. Not verified. This report is not a print-readiness certificate.
+  MANUAL CHECK P26 PDF colour / PDF-X conformance: PDF is generated as RGB by Chromium. CMYK conversion, output intent and PDF/X conformance are NOT verified in v0.1; confirm with the printer's preflight
+  MANUAL CHECK P27 Publication Critic (blind/context/rereview): critic reviews not completed. Run npm run publication:critic -- test-issue-02 and have publication-critic fill critic-*.md
+  MANUAL CHECK P28 Proofreader pass: no completed reviews/proofread.md. Typos, notation and caption correspondence are not machine-verified
+
+publication:all test-issue-02: preflight WARNING (PASS 23, WARNING 2, FAIL 0, MANUAL CHECK 7)
+outputs: publishing-studio/output/test-issue-02/ {test-issue-02.pdf, pages/, contact/, rhythm.md, fingerprint.json, review-pack/, preflight.md}
+EXIT 0
