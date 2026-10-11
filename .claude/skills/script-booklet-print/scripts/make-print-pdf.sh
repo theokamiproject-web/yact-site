@@ -7,7 +7,8 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 HTML=$1; OUT=$2; EXP=$3; V=${VIVLIO:-vivliostyle}
-command -v "$V" >/dev/null 2>&1 || V=/home/user/yact-site/node_modules/.bin/vivliostyle
+command -v "$V" >/dev/null 2>&1 || V="$(git rev-parse --show-toplevel 2>/dev/null)/node_modules/.bin/vivliostyle"
+[ -x "$V" ] || command -v "$V" >/dev/null 2>&1 || { echo "ENV NG: vivliostyle が見つからない (VIVLIO で指定)"; exit 3; }
 mkdir -p "$OUT"
 "$V" build "$HTML" -o "$OUT/body_raw.pdf" >"$OUT/vivliostyle.log" 2>&1 || { echo "ERROR: vivliostyle failed, see $OUT/vivliostyle.log"; exit 1; }
 "$HERE/to-gray.sh" "$OUT/body_raw.pdf" "$OUT/body.pdf"
