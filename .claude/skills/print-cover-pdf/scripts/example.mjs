@@ -1,5 +1,5 @@
 // 最小の使用例（これを複製して案を作る）。 node example.mjs <node_modules> <out.svg> [W H]
-// 例: node example.mjs /path/to/node_modules /tmp/cover.svg 148 210
+// 例: node example.mjs ./node_modules out.svg 148 210
 import fs from 'node:fs'; import { makeLib } from './lib.mjs';
 const [nm, out, W = 182, H = 257] = process.argv.slice(2); const L = makeLib({ nodeModules: nm, pageMM: [+W, +H] });
 const m = Math.max(10, +W * 0.06);                         // 安全余白（仕様の最小値より大きく取る）
