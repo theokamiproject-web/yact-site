@@ -18,10 +18,10 @@ description: モノクロ（K単色）の印刷物（台本・冊子の表紙、
 ## Workflow
 1. **仕様を表にする**（`references/spec-checklist.md`）。縮小転用は縦横比が同じか確認（B5とA6は同比率）。
 2. **素材の有無を確認**。指定ロゴが無い → 手元の類似素材を**仮置き**として使い、最終報告で「未受領・仮」と明記（黙って代用しない）。ラスター混在のロゴは `references/raster-to-vector.md`。
-3. **ブリーフ→段階制作**（`references/design-taste.md`）。着手前に `references/brief-template.md`（好き3〜5点・嫌い2点＋理由、3軸）を埋める。段階は ①方向性＝**骨格の違う3案**をラフで（`scripts/skeletons.mjs`：文字だけ／図が主役／題字を崩す。モチーフ違いの3案は出さない）②構図 ③仕上げ。各段階で決めることは1つ。題字は書体3種以上・大きさは両極（`references/typography-moves.md`）。
-4. **SVGを書く**: `scripts/skeletons.mjs` か `example.mjs` を複製。`scripts/lib.mjs` の `vtext/htext`（曲線化。`{family, track}` で書体・字間）・`halo`（白フチ）・`embed`（ロゴ埋め込み）を使う。座標は mm。図形に手の痕跡を足すときは `scripts/roughen.py`（ラスタで崩してベクターに戻す。文字には使わない）。
+3. **ブリーフ→方針→段階制作**（`references/design-taste.md`）。着手前に `references/brief-template.md`（好き3〜5点・嫌い2点＋理由、3軸）を埋め、`references/design-philosophy.md`（視覚の方針10行以内）を書く。段階は ①方向性＝**骨格の違う3案**をラフで（`scripts/skeletons.mjs`：文字だけ／図が主役／題字を崩す。モチーフ違いの3案は出さない）②構図 ③仕上げ。各段階で決めることは1つ。題字は書体3種以上・大きさは両極（`references/typography-moves.md`）。
+4. **SVGを書く**: `scripts/skeletons.mjs` か `example.mjs` を複製。`scripts/lib.mjs` の `vtext/htext`（曲線化。`{family, track}` で書体・字間）・`halo`（白フチ）・`embed`（ロゴ埋め込み）を使う。座標は mm。縦組みの約物（、。ー括弧）は `vtext` が処理する（`references/vertical-typesetting.md`。数字・欧文・禁則は未対応）。図形に手の痕跡を足すときは `scripts/roughen.py`（面を崩す）か `scripts/sketchy.mjs`（細い線を手描き風に。要 `npm i roughjs`）。文字には使わない。外部資料と取り込み状況: `references/learning-resources.md`。
 5. **PDF化**: `svg2pdf.cjs` → `gray_pdf.py`（RGB→K、判型を正確に）→ `check_pdf.py`（寸法・フォント0・画像0・余白実測・黒面積）。
-6. **提出前の講評ゲート**: PNG化 → `scripts/review_sheet.py`（縮小30mm・ぼかし・反転・黒面積・要素数・主役占有・骨格の類似度）を**自分の目で読む**。主役が分からない案・題字が読めない案・骨格が似た案（類似度0.85以上で終了コード1）は捨てて作り直す。見切れ・重なりもここで確認。
+6. **提出前の講評ゲート**: PNG化 → `scripts/slop_check.py`（規則7つ。指摘は直す）→ `scripts/review_sheet.py`（縮小30mm・ぼかし・反転・黒面積・要素数・主役占有・骨格の類似度）を**自分の目で読む**。主役が分からない案・題字が読めない案・骨格が似た案（類似度0.85以上で終了コード1）は捨てて作り直す。見切れ・重なりもここで確認。
 7. **納品**: PDF／一覧画像／説明md（意図2〜3行・書体とライセンス・未確認事項・捨てた案の数と理由）。好みマップ（`brief-template.md` §4）に1行追記。
 
 ## Decision rules

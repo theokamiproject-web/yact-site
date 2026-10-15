@@ -9,8 +9,12 @@ export function makeLib({ nodeModules, pageMM, weights = [500, 700, 900], chars 
   // フォントは文字ごとに分割ファイルになっている。必要な文字がどの分割にあるかを探して引く（なければ例外）
   const fontFor = (w, ch, fam = 'noto-serif-jp') => { const k = fam + w; map[k] = map[k] || {}; if (!map[k][ch]) { for (const f of files(fam, w)) { const g = load(f).charToGlyph(ch); if (g && g.index !== 0) { map[k][ch] = f; break; } } } if (!map[k][ch]) throw new Error(`書体に無い文字: ${ch} (${fam} w${w})`); return load(map[k][ch]); };
   // o: { family: '@fontsource の名前', track: 字間(em比。負で詰め) }。題字は書体を3種以上試す（references/typography-moves.md）
+  // 縦組みの約物（W3C JLReq の縦組み規則の要点）: 長音・波線・ダッシュ・括弧は90°回転、句読点は右上へ、小書き仮名は右上へ少し寄せる
+  const VROT = new Set([...'ー〜～―…‥−（）〔〕［］｛｝「」『』【】《》〈〉']); const VPUNCT = new Set([...'、。，．']); const VSMALL = new Set([...'ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ']);
+  const mapPath = (p, fn) => { for (const c of p.commands) for (const [a, b] of [['x', 'y'], ['x1', 'y1'], ['x2', 'y2']]) if (c[a] !== undefined) { const [nx, ny] = fn(c[a], c[b]); c[a] = nx; c[b] = ny; } return p; };
+  const vAdjust = (p, ch, cx, y, em) => { if (VROT.has(ch)) { const cy = y + em * 0.5; return mapPath(p, (px, py) => [cx - (py - cy), cy + (px - cx)]); } if (VPUNCT.has(ch)) return mapPath(p, (px, py) => [px + em * 0.55, py - em * 0.62]); if (VSMALL.has(ch)) return mapPath(p, (px, py) => [px + em * 0.1, py - em * 0.1]); return p; };
   // 縦組み: cx=列の中心(mm), y0=上端(mm)。空白は 0.3em 空ける。戻り値 {d, bottom}
-  function vtext(str, em, cx, y0, w = 700, o = {}) { let d = '', y = y0; const t = (o.track || 0) * em; for (const ch of str) { if (ch === '　' || ch === ' ') { y += em * 0.3; continue; } const f = fontFor(w, ch, o.family), g = f.charToGlyph(ch); const a = g.advanceWidth / f.unitsPerEm * em; d += g.getPath(cx - a / 2, y + em * 0.86, em).toPathData(2); y += em + t; } return { d, bottom: y - t }; }
+  function vtext(str, em, cx, y0, w = 700, o = {}) { let d = '', y = y0; const t = (o.track || 0) * em; for (const ch of str) { if (ch === '　' || ch === ' ') { y += em * 0.3; continue; } const f = fontFor(w, ch, o.family), g = f.charToGlyph(ch); const a = g.advanceWidth / f.unitsPerEm * em; d += vAdjust(g.getPath(cx - a / 2, y + em * 0.86, em), ch, cx, y, em).toPathData(2); y += em + t; } return { d, bottom: y - t }; }
   // 横組み: x0=左端, base=ベースライン(mm)
   function htext(str, em, x0, base, w = 700, o = {}) { let d = '', x = x0; const t = (o.track || 0) * em; for (const ch of str) { const f = fontFor(w, ch, o.family), g = f.charToGlyph(ch); d += g.getPath(x, base, em).toPathData(2); x += g.advanceWidth / f.unitsPerEm * em + t; } return { d, right: x - t }; }
   const halo = (d, sw = 2.6) => `<path d="${d}" fill="#fff" stroke="#fff" stroke-width="${sw}" stroke-linejoin="round"/><path d="${d}" fill="#000"/>`;
