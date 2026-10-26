@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "podcast-tool"
+version = "0.1.0"
+description = "FFmpeg-based podcast auto editing and mastering CLI"
+requires-python = ">=3.9"
+dependencies = ["PyYAML>=5.4"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+podcast = "podcast_tool.cli:main"
+
+[tool.setuptools]
+packages = ["podcast_tool"]
