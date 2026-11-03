@@ -1,0 +1,208 @@
+<!doctype html>
+<!--
+  共催事業企画書テンプレート（提出用・A4縦5ページ）
+  - {{…}} を置き換え、各セクションの例文を案件に合わせて書き直す。例文は実際に提出した版の文面。
+  - 1ページ＝1 <section class="page">。はみ出しは topdf.js 後に画像化して確認し、表を統合するか文章を削って直す。
+  - 表紙は .cover .img のCSSグラデーションで作品の世界観を出す（文字入りのチラシ画像は透けるので使わない）。
+  - PDF化: node ../scripts/topdf.js proposal.html 出力.pdf
+-->
+
+<html lang="ja"><head><meta charset="utf-8">
+<title>共催事業企画書 {{作品名}}</title>
+<style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box}
+:root{--ink:#22292d;--sub:#5d666b;--line:#c9cfd2;--sea:#2f4049;--pale:#eef1f2;--accent:#b5372b}
+body{margin:0;font-family:"Noto Sans CJK JP",sans-serif;color:var(--ink);font-size:9.8pt;line-height:1.75}
+.page{width:210mm;height:297mm;padding:18mm 18mm 14mm;page-break-after:always;position:relative;overflow:hidden}
+.page:last-child{page-break-after:auto}
+.tight td,.tight th{padding:1.1mm 2.4mm}
+.foot{position:absolute;left:18mm;right:18mm;bottom:9mm;font-size:7.5pt;color:var(--sub);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:2mm}
+h2{font-size:14pt;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:2px solid var(--sea);font-weight:700;letter-spacing:.04em}
+h2 .no{color:var(--accent);margin-right:2mm}
+h3{font-size:10.5pt;margin:5mm 0 1.5mm;font-weight:700;color:var(--sea)}
+p{margin:0 0 2.5mm}
+table{width:100%;border-collapse:collapse;margin:1mm 0 3mm;font-size:9pt}
+th,td{border:1px solid var(--line);padding:1.6mm 2.4mm;vertical-align:top;text-align:left}
+th{background:var(--pale);font-weight:700;white-space:nowrap}
+td.t{white-space:nowrap}
+ul{margin:0 0 3mm;padding-left:5mm}
+li{margin:0 0 1mm}
+.lead{font-size:10.5pt;line-height:1.8;margin-bottom:4mm}
+.note{font-size:8pt;color:var(--sub)}
+.box{background:var(--pale);border-left:3px solid var(--sea);padding:3mm 4mm;margin:2mm 0 4mm}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:5mm}
+/* cover */
+.cover{padding:0;background:#1e272b;color:#fff}
+.cover .img{position:absolute;inset:0;background:linear-gradient(180deg,#9aa3a7 0%,#6f7a80 30%,#3d4a51 47%,#2a353b 47.3%,#1b2327 70%,#141a1d 100%)}
+.cover .img::after{content:'';position:absolute;left:68%;top:46.2%;width:3.2mm;height:3.2mm;border-radius:50%;background:#ff9a7a;box-shadow:0 0 6mm 2mm rgba(255,120,90,.55)}
+.cover .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,26,29,.15) 0%,rgba(20,26,29,.35) 45%,rgba(20,26,29,.92) 72%,#141a1d 100%)}
+.cover .in{position:absolute;left:20mm;right:20mm;bottom:22mm}
+.cover .kicker{font-size:11pt;letter-spacing:.2em;margin-bottom:6mm;color:#dfe5e7}
+.cover .t1{font-size:12pt;letter-spacing:.12em;color:#cfd7da}
+.cover .t2{font-family:"Noto Serif CJK JP",serif;font-weight:700;font-size:40pt;line-height:1.25;margin:2mm 0 3mm}
+.cover .t3{font-size:12.5pt;margin-bottom:9mm}
+.cover table{color:#fff;font-size:9.5pt;margin-bottom:9mm;width:auto}
+.cover th,.cover td{border:none;border-bottom:1px solid rgba(255,255,255,.25);padding:1.6mm 6mm 1.6mm 0;background:none}
+.cover th{color:#aebbc0;font-weight:400}
+.cover .by{font-size:10pt;line-height:1.7;color:#dfe5e7}
+.cover .top{position:absolute;left:20mm;right:20mm;top:16mm;display:flex;justify-content:space-between;font-size:9pt;color:#e7ecee;letter-spacing:.1em}
+</style></head><body>
+
+
+<section class="page cover">
+  <div class="img"></div><div class="shade"></div>
+  <div class="top"><span>{{劇場名}} 共催事業のご提案</span><span>{{提出年月}}</span></div>
+  <div class="in">
+    <div class="t1">{{団体名}} {{年度}} {{地域}}公演</div>
+    <div class="t2">{{作品名}}</div>
+    <div class="t3">公演3ステージ ＋ 高校生・県民参加プログラム</div>
+    <table>
+      <tr><th>会期（予定）</th><td>2027年11月初旬　仕込みを含む4〜5日間</td></tr>
+      <tr><th>会場</th><td>{{劇場名}} {{ホール名}}</td></tr>
+      <tr><th>原作</th><td>{{原作・形式}}</td></tr>
+      <tr><th>脚本・演出</th><td>{{演出家名}}</td></tr>
+    </table>
+    <div class="by">{{団体名}}<br>担当：{{担当者名}}　{{連絡先メール}}</div>
+  </div>
+</section>
+
+<section class="page">
+  <h2><span class="no">1</span>企画の概要</h2>
+  <p class="lead">東京公演（2027年10月下旬）に続く地方ツアーとして、{{劇場略称}}{{ホール名}}で3ステージを上演します。あわせて、公募した県内の高校生による短編朗読劇、劇団の講師によるワークショップ、バックステージツアーを行い、観るだけでなく県民が参加できる公演にします。</p>
+  <table>
+    <tr><th>事業名（仮）</th><td>{{団体名}} {{年度}} {{地域}}公演『{{作品名}}』</td></tr>
+    <tr><th>主催</th><td>{{団体名}}</td></tr>
+    <tr><th>共催（お願い）</th><td>{{劇場名}}</td></tr>
+    <tr><th>会場</th><td>{{ホール名}}</td></tr>
+    <tr><th>会期（予定）</th><td>2027年11月初旬、仕込みを含む4日間（最小）〜5日間（最大）。3. 実施内容に両方の案を示します</td></tr>
+    <tr><th>公演</th><td>3ステージ、各回65席</td></tr>
+    <tr><th>料金（予定）</th><td>前売 3,500円／U25 3,000円／当日 4,500円</td></tr>
+    <tr><th>参加プログラム</th><td>公募高校生による短編朗読劇／ワークショップ（45分×2講座）／バックステージツアー</td></tr>
+  </table>
+
+  <h2 style="margin-top:7mm"><span class="no">2</span>ご提案の趣旨</h2>
+  <ul>
+    <li><b>{{地域}}で続けてきた公演を、毎年戻ってくる場にしたい。</b>2023年『ノア版 野鴨』、2025年『ノア版 小さなアナタ』、2026年『ノア版 桜の花ざかり』と、{{劇場略称}}{{ホール名}}で公演を重ねてきました。2027年はステージ数を2回から3回に増やします。</li>
+    <li><b>県内の若い人が、プロの舞台に立つ機会をつくりたい。</b>2026年には全国高校総合文化祭が{{地域}}で開かれ、演劇部門も県内で行われました。その翌年に、高校生がプロの公演と同じ舞台に立つ場を用意します。</li>
+    <li><b>公演の時だけでなく、{{地域}}に通い続けている劇団として。</b>劇団員の{{担当者名}}は{{出身地}}の出身です。{{担当者名}}と脚本・演出の{{演出家名}}は、「{{地域での継続活動名}}」で{{地域}}を訪れ、市民とのワークショップを重ねています。日本海に面した{{地域}}で、海を描く作品を上演する意味も大きいと考えています。</li>
+  </ul>
+  <div class="foot"><span>{{団体名}} {{年度}} {{地域}}公演 共催事業企画書</span><span>2</span></div>
+</section>
+
+<section class="page">
+  <h2><span class="no">3</span>実施内容</h2>
+  <h3 style="margin-top:0">日程（案）</h3>
+  <table class="tight">
+    <tr><th>内容</th><th>4日間の案（最小）</th><th>5日間の案（最大）</th></tr>
+    <tr><td>搬入・仕込み</td><td>1日目 9:00–22:00</td><td>1日目 9:00–22:00</td></tr>
+    <tr><td>場当たり・ゲネプロ</td><td>2日目 昼</td><td>2日目 9:00–22:00</td></tr>
+    <tr><td>公演①</td><td>2日目 19:00</td><td>3日目 19:00</td></tr>
+    <tr><td>高校生の朗読劇の場当たり</td><td>3日目 10:00–11:30</td><td>3日目 昼</td></tr>
+    <tr><td>公演②</td><td>3日目 13:00</td><td>4日目 13:00</td></tr>
+    <tr><td>ワークショップ（45分×2講座）</td><td>3日目 15:30–17:15</td><td>4日目 15:30–17:15</td></tr>
+    <tr><td>バックステージツアー</td><td>3日目 17:30–18:00</td><td>4日目 17:30–18:00</td></tr>
+    <tr><td>高校生の朗読劇</td><td>4日目 13:30–13:50</td><td>5日目 13:30–13:50</td></tr>
+    <tr><td>公演③</td><td>4日目 14:00</td><td>5日目 14:00</td></tr>
+    <tr><td>バラシ・搬出・原状復帰</td><td>4日目 16:15–22:00</td><td>5日目 16:15–22:00</td></tr>
+  </table>
+  <p class="note">時刻は開演時刻を含めて仮です。4日間の案は木〜日、5日間の案は水〜日を想定しています。5日間の案では、場当たり・ゲネプロに丸1日を充て、公演①の日の昼に高校生の場当たりを行えるため、公演②の日の負担が軽くなります。</p>
+
+  <h3>① 公演『{{作品名}}』</h3>
+  <p>イプセン『海の夫人』をもとに、{{演出家名}}が脚本・演出を手がけるリ・クリエーション作品です。12月のオーディションで出演者を決め、2027年10月下旬に東京で上演した後、{{地域}}で上演します。</p>
+
+  <h3>② 公募高校生による短編朗読劇『{{上演作品名}}』</h3>
+  <table>
+    <tr><th>内容</th><td>上演時間約20分の短編朗読劇を、公募した高校生が上演します。公演の前に、本番の舞台で発表します。</td></tr>
+    <tr><th>募集</th><td>{{都道府県}}内の高校生 2名。演劇経験は問いません。参加費無料。</td></tr>
+    <tr><th>稽古</th><td>{{演出家名}}がオンラインで演出し、{{担当者名}}が{{地域}}で対面稽古を担当します。稽古は20時までに終えます。</td></tr>
+    <tr><th>手続き</th><td>学校の許可書と保護者の同意書をいただきます。傷害保険に加入します。</td></tr>
+  </table>
+
+  <h3>③ ワークショップと④ バックステージツアー（公演の後、{{ホール名}}舞台上）</h3>
+  <table>
+    <tr><th>1講座目（45分）</th><td>{{演出家名}}による演劇ワークショップ（定員20名）</td></tr>
+    <tr><th>2講座目（45分）</th><td>{{講師名}}による殺陣ワークショップ（定員20名）</td></tr>
+    <tr><th>対象・参加費</th><td>中学生以上、経験不問。1講座1,000円。18歳未満と、公演をご覧になった方は無料。</td></tr>
+    <tr><th>ツアー（30分）</th><td>舞台監督など出演しないスタッフが案内し、照明や吊り物の近くには立ち入りません。</td></tr>
+  </table>
+  <p class="note">講師は予定です。殺陣は素振りと型に限り、相手と組む動きは行いません。</p>
+  <div class="foot"><span>{{団体名}} {{年度}} {{地域}}公演 共催事業企画書</span><span>3</span></div>
+</section>
+
+<section class="page">
+  <h2><span class="no">4</span>劇場・地域にとっての意義</h2>
+  <p>国の指針と{{都道府県}}の文化振興計画が劇場に求める取り組みに、次のように応えます。</p>
+  <table>
+    <tr><th>求められていること</th><th>本企画での取り組み</th></tr>
+    <tr><td>鑑賞機会の提供にとどまらず、利用者が参加する取り組み<br><span class="note">劇場・音楽堂等の事業の活性化のための取組に関する指針（文部科学省告示）</span></td><td>高校生の朗読劇、ワークショップ2講座、バックステージツアー</td></tr>
+    <tr><td>子どもが質の高い実演芸術に触れる機会<br><span class="note">同上</span></td><td>18歳未満はワークショップ無料、U25料金。高校生がプロの公演と同じ舞台で朗読劇を上演</td></tr>
+    <tr><td>県民が文化芸術に親しむ機会の充実<br><span class="note">{{都道府県の文化振興計画名}}</span></td><td>3ステージ・195席の公演</td></tr>
+    <tr><td>次代を担う人材の育成と発表の場<br><span class="note">同上</span></td><td>公募高校生による朗読劇を、本番の舞台で発表</td></tr>
+    <tr><td>文化芸術による交流人口・関係人口の拡大<br><span class="note">同上</span></td><td>東京の劇団が毎年{{地域}}に戻り、県内の人と舞台をつくる</td></tr>
+  </table>
+
+  <h2 style="margin-top:7mm"><span class="no">5</span>これまでの{{地域}}公演</h2>
+  <table>
+    <tr><th>年</th><th>作品</th><th>会場</th></tr>
+    <tr><td>2023年</td><td>『ノア版 野鴨』</td><td>{{劇場略称}} {{ホール名}}</td></tr>
+    <tr><td>2025年</td><td>『ノア版 小さなアナタ』</td><td>{{劇場略称}} {{ホール名}}</td></tr>
+    <tr><td>2026年</td><td>『ノア版 桜の花ざかり』（劇団化20周年公演）</td><td>{{劇場略称}} {{ホール名}}</td></tr>
+  </table>
+  <div class="box">2026年10月31日の2ステージは、公演当日の朝の時点で予約116枚（各回65席に対して約9割）でした。終演後にはワークショップを行いました。</div>
+
+  <h2 style="margin-top:7mm"><span class="no">6</span>広報</h2>
+  <ul>
+    <li>劇団：特設サイト、SNSでの告知、出演者紹介、公演後のアーカイブ配信</li>
+    <li>{{地域}}での広報：地元ラジオ・テレビへの出演依頼、プレスリリース、県内の学校・演劇団体へのチラシ送付</li>
+    <li>高校生の募集とワークショップは、県内の高校・演劇部に案内します</li>
+  </ul>
+  <div class="foot"><span>{{団体名}} {{年度}} {{地域}}公演 共催事業企画書</span><span>4</span></div>
+</section>
+
+<section class="page">
+  <h2><span class="no">7</span>役割分担（案）</h2>
+  <div class="cols">
+    <div>
+      <h3 style="margin-top:0">劇団が担うこと</h3>
+      <ul>
+        <li>公演の制作・出演、舞台の仕込みとバラシ</li>
+        <li>朗読劇・ワークショップの企画、講師、稽古</li>
+        <li>高校生の募集要項の作成、書類の確認、保険加入</li>
+        <li>チケット販売（オンライン）と当日の受付</li>
+        <li>参加者と観客の安全管理</li>
+        <li>実施報告書の提出（来場者・参加者アンケートの集計を含む）</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:0">{{劇場略称}}にお願いしたいこと</h3>
+      <ul>
+        <li>共催としてのお名前の掲載</li>
+        <li>会場費の取り扱い</li>
+        <li>公式サイト・情報誌・館内でのご案内</li>
+        <li>県内の高校への募集案内のご協力</li>
+        <li>窓口でのチケット販売（可能であれば）</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">収支予算書は、共催の範囲が決まりしだい提出いたします。</p>
+
+  <h2 style="margin-top:6mm"><span class="no">8</span>ご相談したいこと</h2>
+  <ul>
+    <li><b>会場の予約：</b>2027年11月の{{ホール名}}は、2026年12月1日〜3日が申込期間と理解しています。共催事業の場合の申込方法と、12月1日（火）の受付の扱いを教えてください。</li>
+    <li><b>会期：</b>4日間と5日間のどちらが可能か。</li>
+    <li><b>舞台の使用：</b>一般の参加者や高校生が舞台に上がる際の条件、殺陣での木刀の使用可否。</li>
+    <li><b>稽古場所：</b>高校生の対面稽古に、館内の練習室などを利用できるか。</li>
+    <li><b>開演時刻：</b>公演①（平日夜）に、{{地域}}のお客様が来場しやすい時刻。</li>
+  </ul>
+
+  <h2 style="margin-top:6mm"><span class="no">9</span>団体概要</h2>
+  <table>
+    <tr><th>団体名</th><td>{{団体名}}（2006年劇団化、東京拠点）</td></tr>
+    <tr><th>代表・脚本・演出</th><td>{{演出家名}}</td></tr>
+    <tr><th>活動</th><td>創作戯曲と、日本・海外戯曲のリ・クリエーションを上演。空間と身体を連動させた演出が持ち味。</td></tr>
+    <tr><th>主な受賞など</th><td>利賀演劇人コンクール2014 観客賞、ギィ・フォワシィ演劇コンクール AGF賞（2010年）、若手演出家コンクール 2次審査進出（2013・2018年）</td></tr>
+  </table>
+  <div class="foot"><span>{{団体名}} {{年度}} {{地域}}公演 共催事業企画書</span><span>5</span></div>
+</section>
+</body></html>
