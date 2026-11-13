@@ -175,6 +175,14 @@ h2{font-family:var(--pop);font-weight:400;font-size:clamp(22px,4.4vw,28px);
 .ev.soon .ev-d b{color:var(--green)}
 .ev.soon{background:linear-gradient(90deg,rgba(154,91,16,.10),rgba(154,91,16,0) 62%)}
 .ev.past{display:none}   /* 終わった予定は載せない */
+.okami-fly{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:center;
+  margin-top:8px;padding:18px 0 22px;border-top:1px solid var(--line)}
+.okami-fly img{width:100%;height:auto;border:1px solid var(--line);background:#fff;display:block}
+.okami-fly p{font-size:14px;color:var(--ink-2);line-height:1.9}
+.okami-fly p a{color:var(--yam-w);font-weight:700}
+.okami-fly.past{display:none}
+.okami-fly p{min-width:0}
+@media (max-width:400px){.okami-fly{grid-template-columns:110px 1fr;gap:14px}}
 .tbd{border-top:1px solid var(--line);padding:24px 0;display:grid;grid-template-columns:118px 1fr;gap:18px}
 .tbd>b{font-family:var(--num);font-weight:900;font-size:20px}
 .tbd p{font-size:14.5px;color:var(--ink-2);line-height:2}
@@ -723,6 +731,13 @@ a.btn-w{display:inline-block;margin-top:16px;background:var(--green);color:var(-
       </div>
     </li>
   </ul>
+
+  <div class="okami-fly rv" data-until="2026-12-28T15:00">
+    <a href="okami_ws_2026.pdf" target="_blank" rel="noopener">
+      <img src="img/okami-ws-2026.jpg" alt="OKAMI企画 主催 秋田3都市巡回「声とからだであそぶ3日間」チラシ。2026年12月26日から28日、にかほ市・由利本荘市・秋田市" width="639" height="904" loading="lazy" decoding="async">
+    </a>
+    <p>【OKAMI企画 主催】<br>「声とからだであそぶ3日間」<br>12/26〜28のチラシです。<br><a href="okami_ws_2026.pdf" target="_blank" rel="noopener">チラシを開く（PDF）</a></p>
+  </div>
 
   <div class="tbd solo">
     <p>以降のスケジュールは調整中です。決まりしだい、このページと公式LINEでお知らせします。</p>
