@@ -1,0 +1,19 @@
+# 人間確認済みの話者対応（任意）。--speaker-constraints で指定すると、保存済みのチャンク結果から話者の統合だけをやり直します。
+# (chunk, local) は聞き比べたサンプルの出典（chunk 番号は 0 始まり、local はそのチャンク内の SPEAKER_xx）。
+# 同じ人物に書いた (chunk, local) は同一人物、別の人物に書いたものは別人として扱います。
+# 人数で全体を固定することはしません。単純なラベル置換もしません。
+persons:
+  B:
+    - {chunk: 0, local: SPEAKER_00}
+    - {chunk: 9, local: SPEAKER_03}   # 例: 後半に別ラベルで現れた話者が B と同じと確認できた場合
+  C:
+    - {chunk: 0, local: SPEAKER_01}
+
+# --- 以下は --analyze-local-split（localの混在分析・レポートのみ）用。任意 ---
+# 人間が聞き比べた代表サンプル（wav）。あれば参照embeddingに使う（無ければ上の persons のlocalの単独区間から作る）
+samples:
+  B: [samples/speaker_B_01.wav]
+  C: [samples/speaker_C_01.wav]
+# 人間確認済みの時刻と人物。分析結果との突き合わせ表示だけに使う（判定ロジックには使わない）
+check_points:
+  - {time: 100, person: B, note: "例"}
