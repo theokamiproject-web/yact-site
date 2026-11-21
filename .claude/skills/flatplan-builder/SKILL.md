@@ -1,6 +1,6 @@
 ---
 name: flatplan-builder
-description: 台割（flatplan.yaml）を作る・直す。記事のページ配分、見開き構成、強弱とリズムの設計、layout/variantの割り当て、台割の検証をするときに使う。
+description: 台割（flatplan.yaml）を作る・直す。記事のページ配分、見開き構成、強弱とリズムの設計、layout/variantの割り当て、台割の検証、ノンブルと目次の番号の付け方を決めるときに使う。
 ---
 # Flatplan builder
 
@@ -26,3 +26,8 @@ pages:
 ## 検証
 `npm run publication:validate -- <id>`。エラー例: `FLATPLAN_GAP`(未割当) `FLATPLAN_OVERLAP`(重複) `SPREAD_PARITY`(見開きが奇数始まり) `SPAN_MISMATCH`(variantのページ数と不一致) `UNKNOWN_LAYOUT` `ARTICLE_NOT_PLACED` `MISSING_INPUT`。
 承認フロー: Editor が骨格 → Editor in Chief 承認 → Layout Designer が型を当てる。
+
+## ノンブルと目次（読者の数え方）
+- **印刷所の数え方（表紙=1P）と読者の数え方は別。** 表紙・目次にはノンブルを付けず、本文の最初のページを 01 にする（印刷ページ − 表紙側の非掲載ページ数）。
+- 目次は、見開きで2ページ使う記事を**範囲で書く**（例: 02–03 稽古場 / 04–05 出演者のことば）。開始番号だけだと番号が飛んで見え、初見の読者に意味が通じない。
+- ノンブルは**全ページ同じ書体・サイズ・色・位置**（左ページは左下、右ページは右下）。写真ページ用・文字ページ用などで書き分けない。

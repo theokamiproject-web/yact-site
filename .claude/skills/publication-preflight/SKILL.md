@@ -1,6 +1,6 @@
 ---
 name: publication-preflight
-description: 入稿前チェック（preflight）の実行と読み方。ページ数・サイズ・塗り足し・欠落素材・本文あふれ・ノンブル・フォント・解像度・色の確認結果（PASS/WARNING/FAIL/MANUAL CHECK）を扱う。
+description: 入稿前チェック（preflight）の実行と読み方。ページ数・サイズ・塗り足し・欠落素材・本文あふれ・ノンブル・フォント・解像度・色の確認結果（PASS/WARNING/FAIL/MANUAL CHECK）を扱う。HTML→PDF（Chromium/Vivliostyle）で作ったカラー冊子を、CMYK変換・アウトライン化・本文黒のK100化・表紙連結して印刷所へ出す仕上げ（「入稿準備」「CMYKにして」「フォントをアウトライン化」）にも使う。
 ---
 # Publication preflight
 
@@ -26,3 +26,19 @@ P00 公開境界（非公開の号が公開ツリーにある→FAIL）, P01 fla
 
 ## v0.1 のスコープ外
 CMYK自動変換、PDF/X適合保証、印刷会社別プロファイル。これらは MANUAL CHECK として残す。
+
+## カラー冊子の入稿仕上げ（v0.1外の作業を手で行う）
+`npm` の preflight を通さずに組んだ冊子（Vivliostyle/Chromium 出力のRGB・フォント埋め込みPDF）を印刷所に出すときの手順。
+1. 組版PDFから本文ページだけを抜く（表紙が別データなら `pdfseparate`→`pdfunite`）。
+2. `python3 .claude/skills/publication-preflight/scripts/color-print-finish.py 本文.pdf 入稿.pdf --cover 表紙.pdf --bleed 3`
+   - gs で CMYK 変換＋アウトライン化（画像はダウンサンプルしない）→ ほぼ黒を K100 に置換 → 表紙を先頭に連結 → 全ページに TrimBox/BleedBox → 検査値を表示。gs が無ければ `apt-get install -y ghostscript`。
+3. 表示を確認: ページ数＝注文ページ数、全ページ同寸（仕上がり＋塗り足し）、フォント0、最小ppi≥300（仕上がり寸法で）、インキ総量（最大と99.5%値。上限は印刷会社の値で判断）。
+4. 追加の目視・機械確認: 全ページを縮小して並べて見る／仕上がり線から3mm以内に文字が無いか（暗画素を数え、塗り足し写真・背景によるものは意図と判断）／**QRコードは変換後のPDFを300dpiでラスタライズして再デコード**する。
+5. 報告: 何をPASSとしたかと、未確認のもの（写真の掲載同意など内容面）を分けて書く。
+
+判断基準と失敗例:
+- 濃い色（例 #1F1B18）の文字は RGB→CMYK で4色ベタ（C72 M69 Y63 K83 程度、総量280%超）になる。8pt前後の本文で版ズレするとにじむので K100 にする。置換後に `tiff32nc` でラスタライズし、文字部が (0,0,0,100) になったか数える。
+- 表紙をデザイナーから受け取ったら `pdfinfo -box`・`pdffonts`・色演算子（`k` のみで `rg` が無い）を確認してから連結する。受領PDFは TrimBox=MediaBox のことがあるので連結後にまとめて設定し直す。
+- 表紙に文字を足すときはフォントを入れず、fontTools でグリフをパス化したSVG→PDFを重ねる（`pypdf` の `merge_transformed_page`）。差し替え版の表紙が届いたら、足した文字は元の差し替え版に既に含まれていないか確認して重複させない。
+- 変換で写真の朱・赤系は画面よりくすむ。ユーザーに一言伝える。
+- ソースを直したら、このスクリプトからやり直す（古い入稿PDFを送らない）。最終版はファイル名を固定し、「前に送った版ではなくこれを入稿」と明示する。
